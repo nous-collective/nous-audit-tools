@@ -1,5 +1,9 @@
 // chrome.storage.local sarmalayıcıları.
 
+import { dedupeListings, listingKey } from './normalize.js';
+
+export const SETTINGS_VERSION = 2;
+
 export const DEFAULT_SETTINGS = {
   displayCurrency: 'TRY',
   rates: null, // { rates: {USD:1, TRY:.., ...}, updatedAt, source, manual }
@@ -13,7 +17,8 @@ export const DEFAULT_SETTINGS = {
   },
   postcode: '',
   contact: { name: '', email: '', phone: '' },
-  runner: { mode: 'background', concurrency: 3, settleMs: 2500, timeoutMs: 45000 },
+  runner: { mode: 'auto', concurrency: 3, settleMs: 2500, timeoutMs: 45000, maxPages: 2 },
+  onlyMatching: true,
   siteOverrides: {},
 };
 
@@ -28,7 +33,14 @@ function merge(base, over) {
 
 export async function getSettings() {
   const { settings } = await chrome.storage.local.get('settings');
-  return merge(DEFAULT_SETTINGS, settings || {});
+  const s = merge(DEFAULT_SETTINGS, settings || {});
+  if ((s.version || 1) < 2) {
+    // 1. sürümde varsayılan "arka plan sekmesi" idi; yeni varsayılan önce hızlı indirme.
+    if (s.runner.mode === 'background') s.runner.mode = 'auto';
+    s.runner.maxPages ??= 2;
+  }
+  s.version = SETTINGS_VERSION;
+  return s;
 }
 
 export async function saveSettings(settings) {
@@ -37,29 +49,31 @@ export async function saveSettings(settings) {
 
 export async function getResults() {
   const { results } = await chrome.storage.local.get('results');
-  return results || [];
+  // Eski sürümde kaydedilmiş sonuçlar ham URL ile anahtarlanmıştı.
+  return dedupeListings((results || []).map((r) => ({ ...r, id: listingKey(r.url) })));
 }
 
 export async function saveResults(results) {
   await chrome.storage.local.set({ results });
 }
 
-// Yeni ilanları mevcut sonuçlara ekler (aynı URL güncellenir).
+// Yeni ilanları mevcut sonuçlara ekler; aynı ilanın kopyaları birleştirilir. Eklenen yeni ilan sayısını döndürür.
 export async function addResults(items) {
   const results = await getResults();
-  const byId = new Map(results.map((r) => [r.id, r]));
-  let added = 0;
-  for (const it of items) {
-    if (!byId.has(it.id)) added++;
-    byId.set(it.id, { ...byId.get(it.id), ...it });
-  }
-  await saveResults([...byId.values()]);
-  return added;
+  const merged = dedupeListings([...results, ...items]);
+  await saveResults(merged);
+  return merged.length - results.length;
 }
 
 export async function getFavorites() {
   const { favorites } = await chrome.storage.local.get('favorites');
-  return favorites || {};
+  // Eski sürümün ham URL anahtarlarını ilan kimliğine taşı.
+  const out = {};
+  for (const fav of Object.values(favorites || {})) {
+    const id = listingKey(fav.listing.url);
+    out[id] = { ...fav, listing: { ...fav.listing, id } };
+  }
+  return out;
 }
 
 export async function saveFavorites(favorites) {

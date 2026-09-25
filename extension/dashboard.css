@@ -105,6 +105,14 @@ main { padding: 16px 20px 60px; max-width: 1600px; margin: 0 auto; }
 .chip.st-done .dot { background: var(--ok); }
 .chip.st-empty .dot, .chip.st-skipped .dot, .chip.st-cancelled .dot { background: var(--muted); }
 .chip.st-blocked .dot, .chip.st-error .dot { background: var(--bad); }
+.chip.st-manual { border-style: dashed; background: transparent; }
+.manual-sites { display: inline-block; }
+.manual-sites summary { list-style: none; }
+.manual-sites summary::-webkit-details-marker { display: none; }
+.manual-sites[open] { display: block; width: 100%; }
+.manual-sites[open] > .chip { margin: 0 6px 6px 0; }
+.manual-sites p { margin: 6px 0; font-size: 12px; }
+.chip.st-manual .dot { background: transparent; border: 1px solid var(--muted); }
 @keyframes pulse { 50% { opacity: 0.3; } }
 
 .results-layout { display: grid; grid-template-columns: 250px 1fr; gap: 16px; align-items: start; }
@@ -159,7 +167,7 @@ label.inline select { width: auto; }
 .sites-table { display: flex; flex-direction: column; gap: 6px; }
 .site-row { display: grid; grid-template-columns: 28px 220px 120px 1fr auto; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .site-row input[type="checkbox"] { width: auto; }
-.site-row .tpl { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+.site-row .tpl { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; resize: vertical; min-height: 32px; }
 .site-row .name a { font-weight: 600; }
 .site-row .sub { font-size: 12px; color: var(--muted); }
 .site-row .btns { display: flex; gap: 6px; }

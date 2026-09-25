@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
-import { buildUrl, requiredFields, searchVars } from '../extension/src/template.js';
+import { buildUrl, buildFirstUrl, missingFields, requiredFields, searchVars } from '../extension/src/template.js';
 import {
   parsePrice,
   pickPrices,
@@ -12,55 +13,75 @@ import {
   detectMake,
   cleanUrl,
   toListing,
+  toListings,
+  listingKey,
+  dedupeListings,
+  PRICE_PATTERN,
 } from '../extension/src/normalize.js';
+import { normalizeQuery, matchesQuery } from '../extension/src/query.js';
 import { ageStatus, landedCost, inquiryMessage } from '../extension/src/kktc.js';
 import { makeConverter } from '../extension/src/currency.js';
 import { SITES, siteForUrl, applySiteOverrides } from '../extension/src/sites.js';
 
 const vars = (o) => ({ make: '', model: '', keyword: '', q: '', yearFrom: '', yearTo: '', priceMin: '', priceMax: '', kmMax: '', milesMax: '', postcode: '', ...o });
 const site = (id) => SITES.find((s) => s.id === id);
+const url = (id, v) => buildFirstUrl(site(id).templates, v);
 
 test('şablon: doğrulanmış site URL yapıları', () => {
   const v = vars({ make: 'Toyota', model: 'Prius', q: 'Toyota Prius' });
-  assert.equal(buildUrl(site('sbt').template, v), 'https://www.sbtjapan.com/used-cars/toyota/prius/');
-  assert.equal(buildUrl(site('carfromjapan').template, v), 'https://carfromjapan.com/cheap-used-toyota-prius-for-sale');
-  assert.equal(buildUrl(site('tcv').template, v), 'https://www.tc-v.com/used_car/toyota/prius/');
-  assert.equal(buildUrl(site('goonet').template, v), 'https://www.goo-net-exchange.com/usedcars/TOYOTA/PRIUS/');
-  assert.equal(buildUrl(site('realmotor').template, v), 'https://www.realmotor.jp/stock/TOYOTA/PRIUS');
-  assert.equal(buildUrl(site('picknbuy24').template, v), 'https://www.picknbuy24.com/usedcar/?maker=toyota&model=prius');
-  assert.equal(buildUrl(site('cardealpage').template, v), 'https://www.cardealpage.com/toyota/prius/');
-  assert.equal(buildUrl(site('carjunction').template, v), 'https://www.carjunction.com/make/toyota/prius.html');
-  assert.equal(buildUrl(site('gumtree').template, v), 'https://www.gumtree.com/cars-vans-motorbikes/cars/toyota/prius');
-  assert.equal(buildUrl(site('motors').template, v), 'https://www.motors.co.uk/toyota/prius/used-cars/');
-  assert.equal(buildUrl(site('pistonheads').template, v), 'https://www.pistonheads.com/buy/toyota/prius');
-  assert.equal(buildUrl(site('cinch').template, v), 'https://www.cinch.co.uk/used-cars/toyota/prius');
-  assert.equal(buildUrl(site('carwow').template, v), 'https://www.carwow.co.uk/toyota/prius/used');
+  assert.equal(url('beforward', v), 'https://www.beforward.jp/stocklist/keyword=Toyota%20Prius');
+  assert.equal(url('sbt', v), 'https://www.sbtjapan.com/used-cars/toyota/prius/');
+  assert.equal(url('carfromjapan', v), 'https://carfromjapan.com/cheap-used-toyota-prius-for-sale');
+  assert.equal(url('tcv', v), 'https://www.tc-v.com/used_car/toyota/prius/');
+  assert.equal(url('goonet', v), 'https://www.goo-net-exchange.com/usedcars/TOYOTA/PRIUS/');
+  assert.equal(url('realmotor', v), 'https://www.realmotor.jp/stock/TOYOTA/PRIUS');
+  assert.equal(url('picknbuy24', v), 'https://www.picknbuy24.com/usedcar/?maker=toyota&model=prius');
+  assert.equal(url('cardealpage', v), 'https://www.cardealpage.com/toyota/prius/');
+  assert.equal(url('carjunction', v), 'https://www.carjunction.com/make/toyota/prius.html');
+  assert.equal(url('satjapan', v), 'https://satjapan.com/used-cars/mk_toyota/md_prius');
+  assert.equal(url('autorec', v), 'https://www.autorec.co.jp/used-cars-list.php?Sort=1&post_maker=TOYOTA');
+  assert.equal(url('autotrader', v), 'https://www.autotrader.co.uk/cars/used/toyota/prius');
+  assert.equal(url('ebay', v), 'https://www.ebay.co.uk/sch/i.html?_sacat=9801&_nkw=Toyota+Prius');
+  assert.equal(url('gumtree', v), 'https://www.gumtree.com/cars-vans-motorbikes/cars/toyota/prius');
+  assert.equal(url('motors', v), 'https://www.motors.co.uk/toyota/prius/used-cars/');
+  assert.equal(url('pistonheads', v), 'https://www.pistonheads.com/buy/toyota/prius');
+  assert.equal(url('cinch', v), 'https://www.cinch.co.uk/used-cars/toyota/prius');
+  assert.equal(url('carwow', v), 'https://www.carwow.co.uk/toyota/prius/used');
+  assert.equal(url('exchangeandmart', v), 'https://www.exchangeandmart.co.uk/used-cars-for-sale/toyota/prius');
+  assert.equal(url('copart', v), 'https://www.copart.co.uk/lotSearchResults/?free=true&query=Toyota+Prius');
+});
+
+test('şablon: BE FORWARD yıl ve fiyat filtreleri', () => {
+  const v = vars({ make: 'Toyota', model: 'Prius', q: 'Toyota Prius', yearFrom: 2021, yearTo: 2023, priceMax: 9000 });
+  assert.equal(url('beforward', v), 'https://www.beforward.jp/stocklist/keyword=Toyota%20Prius/mfg_year_from=2021/mfg_year_to=2023/fob_price_to=9000');
 });
 
 test('şablon: çok kelimeli modeller', () => {
   const v = vars({ make: 'Toyota', model: 'Prius PHV', q: 'Toyota Prius PHV' });
-  assert.equal(buildUrl(site('goonet').template, v), 'https://www.goo-net-exchange.com/usedcars/TOYOTA/PRIUS_PHV/');
-  assert.equal(buildUrl(site('tcv').template, v), 'https://www.tc-v.com/used_car/toyota/prius%20phv/');
-  assert.equal(buildUrl(site('sbt').template, v), 'https://www.sbtjapan.com/used-cars/toyota/prius-phv/');
-  assert.equal(buildUrl(site('picknbuy24').template, v), 'https://www.picknbuy24.com/usedcar/?maker=toyota&model=prius+phv');
-  assert.equal(buildUrl(site('realmotor').template, v), 'https://www.realmotor.jp/stock/TOYOTA/PRIUS%20PHV');
+  assert.equal(url('goonet', v), 'https://www.goo-net-exchange.com/usedcars/TOYOTA/PRIUS_PHV/');
+  assert.equal(url('tcv', v), 'https://www.tc-v.com/used_car/toyota/prius%20phv/');
+  assert.equal(url('sbt', v), 'https://www.sbtjapan.com/used-cars/toyota/prius-phv/');
+  assert.equal(url('picknbuy24', v), 'https://www.picknbuy24.com/usedcar/?maker=toyota&model=prius+phv');
+  assert.equal(url('realmotor', v), 'https://www.realmotor.jp/stock/TOYOTA/PRIUS%20PHV');
   const lr = vars({ make: 'Land Rover', model: 'Range Rover Evoque', q: 'Land Rover Range Rover Evoque' });
-  assert.equal(buildUrl(site('motors').template, lr), 'https://www.motors.co.uk/land-rover/range-rover-evoque/used-cars/');
+  assert.equal(url('motors', lr), 'https://www.motors.co.uk/land-rover/range-rover-evoque/used-cars/');
 });
 
-test('şablon: isteğe bağlı parçalar ve zorunlu alanlar', () => {
+test('şablon: model yoksa yalnızca markayla arayan şablona düşer (site atlanmaz)', () => {
   const onlyMake = vars({ make: 'Nissan', q: 'Nissan' });
-  assert.equal(buildUrl(site('sbt').template, onlyMake), 'https://www.sbtjapan.com/used-cars/nissan/');
-  assert.equal(buildUrl(site('carfromjapan').template, onlyMake), 'https://carfromjapan.com/cheap-used-nissan-for-sale');
-  assert.equal(buildUrl(site('carjunction').template, onlyMake), null, 'model zorunlu');
-  assert.equal(buildUrl(site('sbt').template, vars({})), null, 'marka zorunlu');
-  assert.deepEqual(requiredFields(site('carjunction').template), ['make', 'model']);
-  assert.deepEqual(requiredFields(site('sbt').template), ['make']);
+  assert.equal(url('sbt', onlyMake), 'https://www.sbtjapan.com/used-cars/nissan/');
+  assert.equal(url('carfromjapan', onlyMake), 'https://carfromjapan.com/cheap-used-nissan-for-sale');
+  assert.equal(url('carjunction', onlyMake), 'https://www.carjunction.com/make/nissan.html');
+  assert.equal(url('carwow', onlyMake), 'https://www.carwow.co.uk/nissan/used');
+  assert.equal(url('autotrader', onlyMake), 'https://www.autotrader.co.uk/cars/used/nissan');
+  assert.equal(url('sbt', vars({})), null, 'marka yoksa aranamaz');
+  assert.deepEqual(missingFields(site('carjunction').templates, vars({})), ['make']);
+  assert.deepEqual(requiredFields('https://x/{make}/{model}[/{yearFrom}]/{make}'), ['make', 'model']);
 
-  const at = buildUrl(site('autotrader').template, vars({ make: 'Toyota', model: 'Prius', yearFrom: 2021, priceMax: 15000, milesMax: 31069 }));
-  assert.equal(at, 'https://www.autotrader.co.uk/car-search?make=Toyota&model=Prius&year-from=2021&price-to=15000&maximum-mileage=31069');
-  const eb = buildUrl(site('ebay').template, vars({ q: 'Toyota Prius', priceMax: 9000 }));
-  assert.equal(eb, 'https://www.ebay.co.uk/sch/i.html?_sacat=9801&_nkw=Toyota+Prius&_udhi=9000');
+  // Her otomatik site en azından marka + model ile URL üretebilmeli.
+  const full = vars({ make: 'Toyota', model: 'Prius', q: 'Toyota Prius' });
+  for (const s of SITES.filter((x) => x.templates.length)) assert.ok(buildFirstUrl(s.templates, full), s.id);
+  assert.equal(buildUrl('https://x/?q={q|plus}[&max={priceMax}]', vars({ q: 'a b', priceMax: 5 })), 'https://x/?q=a+b&max=5');
   assert.throws(() => buildUrl('https://x/{make|nope}', vars({ make: 'a' })), /değiştirici/);
 });
 
@@ -230,14 +251,120 @@ test('siteler: URL eşleme ve ayarlar', () => {
   assert.equal(siteForUrl('https://www.beforward.jp/stocklist')?.id, 'beforward');
   assert.equal(siteForUrl('https://sp.beforward.jp/x')?.id, 'beforward');
   assert.equal(siteForUrl('https://carfromjapan.com/x')?.id, 'carfromjapan');
+  assert.equal(siteForUrl('https://www.satjapan.com/used-cars/toyota/prius/sat-1')?.id, 'satjapan');
   assert.equal(siteForUrl('https://example.com/'), null);
   const ids = SITES.map((s) => s.id);
   assert.equal(new Set(ids).size, ids.length, 'site kimlikleri benzersiz');
 
-  const s = applySiteOverrides({ sbt: { enabled: false }, autorec: { template: 'https://www.autorec.co.jp/?q={q|enc}' }, gumtree: { template: '' } });
+  const s = applySiteOverrides({
+    sbt: { enabled: false },
+    japancardirect: { templates: ['https://www.japancardirect.com/?q={q|enc}'] },
+    gumtree: { templates: [] },
+    cinch: { template: 'https://old/{make}' }, // eski sürümün tek şablon kaydı
+  });
   assert.equal(s.find((x) => x.id === 'sbt').enabled, false);
-  assert.equal(s.find((x) => x.id === 'autorec').template, 'https://www.autorec.co.jp/?q={q|enc}');
-  assert.equal(s.find((x) => x.id === 'autorec').enabled, true);
-  assert.equal(s.find((x) => x.id === 'gumtree').template, null);
+  assert.deepEqual(s.find((x) => x.id === 'japancardirect').templates, ['https://www.japancardirect.com/?q={q|enc}']);
+  assert.equal(s.find((x) => x.id === 'japancardirect').enabled, true);
+  assert.deepEqual(s.find((x) => x.id === 'gumtree').templates, []);
+  assert.equal(s.find((x) => x.id === 'gumtree').enabled, false);
+  assert.deepEqual(s.find((x) => x.id === 'cinch').templates, ['https://old/{make}']);
   assert.equal(s.find((x) => x.id === 'cargurus').enabled, false, 'şablonsuz site varsayılan kapalı');
+});
+
+test('ilan kimliği: aynı ilana giden farklı bağlantılar tek anahtar', () => {
+  const same = (a, b) => assert.equal(listingKey(a), listingKey(b), `${a} ≠ ${b}`);
+  const diff = (a, b) => assert.notEqual(listingKey(a), listingKey(b), `${a} = ${b}`);
+  same('https://www.cardealpage.com/toyota/prius/241748446/?refkey=774441d3', 'https://www.cardealpage.com/toyota/prius/241748446/');
+  same('https://www.cardealpage.com/toyota/prius/241748446', 'http://cardealpage.com/toyota/prius/241748446/');
+  same('https://sp.beforward.jp/toyota/prius/bf123/id/456/', 'https://www.beforward.jp/toyota/prius/bf123/id/456/');
+  same('https://www.autotrader.co.uk/car-details/202409011234567?sort=relevance&advertising-location=at_cars&position=3', 'https://www.autotrader.co.uk/car-details/202409011234567');
+  same('https://www.realmotor.jp/stock_detail?id=85839&form=2&maker=43&model=&year_from=', 'https://www.realmotor.jp/stock_detail?maker=43&id=85839');
+  same('https://www.goo-net-exchange.com/usedcars/TOYOTA/PRIUS/963026030309800108005/', 'https://www.goo-net-exchange.com/usedcars/toyota/prius/963026030309800108005');
+  same('https://www.ebay.co.uk/itm/1234567890?_trkparms=x&hash=item1', 'https://www.ebay.co.uk/itm/1234567890');
+  diff('https://www.picknbuy24.com/detail/?refno=0122222081', 'https://www.picknbuy24.com/detail/?refno=0122222082');
+  diff('https://www.autorec.co.jp/car-detail.php?refno=18107PT07', 'https://www.autorec.co.jp/car-detail.php?refno=18107PT08');
+  diff('https://x.com/vehicle?v=12', 'https://x.com/vehicle?v=13');
+  diff('https://www.sbtjapan.com/used-cars/toyota/prius/DP4248/', 'https://www.sbtjapan.com/used-cars/toyota/prius/DP4249/');
+});
+
+test('kopya ayıklama: bağlantı ve içerik', () => {
+  const site = { id: 'cdp', name: 'CDP', country: 'JP' };
+  const raws = [
+    { url: 'https://www.cardealpage.com/toyota/prius/1001/?refkey=a', title: '2018 TOYOTA PRIUS', priceTexts: [{ text: 'US$15,490' }], text: '2018 45,000 km' },
+    { url: 'https://www.cardealpage.com/toyota/prius/1001/', title: '2018 TOYOTA PRIUS', image: 'https://img/1.jpg', priceTexts: [{ text: 'US$15,490' }], text: '2018 45,000 km AT' },
+    // Mobil kopya: farklı bağlantı, aynı başlık/fiyat/yıl/km
+    { url: 'https://m.example.com/car?view=mobile&c=1001', title: '2018 Toyota Prius', priceTexts: [{ text: 'US$15,490' }], text: '2018 45,000 km' },
+    { url: 'https://www.cardealpage.com/toyota/prius/1002/', title: '2018 TOYOTA PRIUS', priceTexts: [{ text: 'US$15,990' }], text: '2018 38,000 km' },
+  ];
+  const out = toListings(raws, site, 'https://www.cardealpage.com/toyota/prius/');
+  assert.equal(out.length, 2);
+  const a = out.find((l) => l.price === 15490);
+  assert.equal(a.image, 'https://img/1.jpg', 'kopyadaki eksik alanlar birleştirilir');
+  assert.equal(a.transmission, 'automatic');
+  assert.equal(a.url, 'https://www.cardealpage.com/toyota/prius/1001/', 'parametresiz bağlantı tercih edilir');
+
+  // Fiyatı ya da yılı/km'si olmayan ilanlar yalnızca bağlantıyla birleştirilir (yanlışlıkla birleşmez).
+  const noPrice = dedupeListings([
+    { id: 'a', siteId: 's', title: 'Toyota Prius', price: null, year: 2018, km: null, url: 'https://a' },
+    { id: 'b', siteId: 's', title: 'Toyota Prius', price: null, year: 2018, km: null, url: 'https://b' },
+  ]);
+  assert.equal(noPrice.length, 2);
+  // Farklı sitelerdeki aynı araç ayrı kalır.
+  const cross = dedupeListings([
+    { id: 'a', siteId: 's1', title: 'Toyota Prius', price: 1, currency: 'USD', year: 2018, km: 5, url: 'https://a' },
+    { id: 'b', siteId: 's2', title: 'Toyota Prius', price: 1, currency: 'USD', year: 2018, km: 5, url: 'https://b' },
+  ]);
+  assert.equal(cross.length, 2);
+});
+
+test('TL fiyatları ve fiyat kalıbı senkronu', () => {
+  assert.deepEqual(parsePrice('₺1.250.000'), { amount: 1250000, currency: 'TRY' });
+  assert.deepEqual(parsePrice('850.000 TL'), { amount: 850000, currency: 'TRY' });
+  assert.deepEqual(parsePrice('JP¥1,170,000'), { amount: 1170000, currency: 'JPY' });
+  assert.equal(parsePrice('Model 2019 TLC'), null);
+  const scraper = readFileSync(new URL('../extension/src/scraper.js', import.meta.url), 'utf8');
+  const src = scraper.match(/const PRICE_SRC =\s*"((?:[^"\\]|\\.)*)"/)[1];
+  assert.equal(JSON.parse(`"${src}"`), PRICE_PATTERN, 'scraper.js PRICE_SRC ile normalize.js PRICE_PATTERN aynı olmalı');
+});
+
+test('sorgu düzeltme: marka/model çıkarımı', () => {
+  const n = (f) => normalizeQuery({ make: '', model: '', keyword: '', ...f }).form;
+  assert.deepEqual(pick(n({ model: 'prius' })), { make: 'Toyota', model: 'Prius', keyword: '' });
+  assert.deepEqual(pick(n({ make: 'toyota prius' })), { make: 'Toyota', model: 'Prius', keyword: '' });
+  assert.deepEqual(pick(n({ make: 'TOYOTA', model: 'toyota c-hr' })), { make: 'Toyota', model: 'C-HR', keyword: '' });
+  assert.deepEqual(pick(n({ keyword: 'toyota chr hybrid' })), { make: 'Toyota', model: 'C-HR', keyword: 'hybrid' });
+  assert.deepEqual(pick(n({ keyword: 'nissan note e-power' })), { make: 'Nissan', model: 'Note e-Power', keyword: '' });
+  assert.deepEqual(pick(n({ make: 'mercedes c200' })), { make: 'Mercedes-Benz', model: 'C200', keyword: '' });
+  assert.deepEqual(pick(n({ make: 'bmw', model: 'x5' })), { make: 'BMW', model: 'X5', keyword: '' });
+  assert.deepEqual(pick(n({ model: 'range rover evoque' })), { make: 'Land Rover', model: 'Range Rover Evoque', keyword: '' });
+  assert.deepEqual(pick(n({ make: 'Honda', model: 'vezel' })), { make: 'Honda', model: 'Vezel', keyword: '' });
+  assert.deepEqual(pick(n({ keyword: 'this is fine' })), { make: '', model: '', keyword: 'this is fine' }, '"is" Lexus IS sayılmaz');
+  assert.deepEqual(pick(n({ make: 'Toyota', model: 'rav4' })), { make: 'Toyota', model: 'RAV4', keyword: '' });
+  assert.deepEqual(pick(n({ make: 'Suzuki', model: 'wagon r' })), { make: 'Suzuki', model: 'Wagon R', keyword: '' });
+  assert.deepEqual(normalizeQuery({ make: '', model: 'prius', keyword: '' }).inferred, ['make']);
+});
+const pick = ({ make, model, keyword }) => ({ make, model, keyword });
+
+test('arama eşleşmesi', () => {
+  const q = { make: 'Toyota', model: 'C-HR' };
+  assert.ok(matchesQuery({ title: '2019 TOYOTA C-HR G', make: 'Toyota' }, q));
+  assert.ok(matchesQuery({ title: 'Toyota CHR Hybrid', make: 'Toyota' }, q));
+  assert.ok(!matchesQuery({ title: '2019 Toyota Prius', make: 'Toyota' }, q));
+  assert.ok(!matchesQuery({ title: '2019 Lexus UX C-HR based', make: 'Lexus' }, q));
+  assert.ok(matchesQuery({ title: 'C-HR 1.8 Excel', make: null }, q), 'başlıkta marka yazmayan ilan modelle eşleşir');
+  assert.ok(matchesQuery({ title: 'Anything' }, null));
+  assert.ok(matchesQuery({ title: '2020 TOYOTA PRIUS S', make: 'Toyota' }, { make: 'Toyota', model: '' }));
+});
+
+test('manifest izinleri tüm siteleri kapsar', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
+  const covers = (host) =>
+    manifest.host_permissions.some((p) => {
+      const m = p.match(/^\*:\/\/\*\.([^/]+)\/\*$/);
+      return m && (host === m[1] || host.endsWith(`.${m[1]}`));
+    });
+  for (const s of SITES) {
+    const hosts = [s.home, ...s.templates.map((t) => t.replace(/\{[^}]*\}/g, 'x').replace(/[[\]]/g, ''))].map((u) => new URL(u).hostname);
+    for (const h of hosts) assert.ok(covers(h), `${s.id}: ${h} manifest'te yok`);
+  }
 });

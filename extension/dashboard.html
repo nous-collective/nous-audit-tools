@@ -103,6 +103,7 @@
                 <option value="ok">Sadece uygun</option>
               </select>
             </label>
+            <label class="check"><input data-f="onlyMatching" type="checkbox" /> Sadece aranan marka/model</label>
             <label class="check"><input data-f="hidePriceless" type="checkbox" /> Fiyatı olmayanları gizle</label>
             <label class="check"><input data-f="rhdOnly" type="checkbox" /> LHD (soldan direksiyon) olanları gizle</label>
             <h4>Siteler</h4>
@@ -125,13 +126,14 @@
                 </select>
               </label>
               <button type="button" id="export-results">CSV indir</button>
-              <button type="button" id="clear-results">Sonuçları temizle</button>
+              <button type="button" id="export-diag" title="Bir site ilan getirmiyorsa bu dosyayı paylaş: her sitenin adresi, yöntemi ve sayfada bulunan yapı örnekleri">Tanı raporu</button>
+              <button type="button" id="clear-results" title="Tüm arama sonuçlarını sil (takip listesi korunur)">Temizle</button>
             </div>
             <div id="results" class="grid"></div>
             <div class="more-wrap"><button type="button" id="more-btn" hidden>Daha fazla göster</button></div>
             <div id="empty-state" class="empty">
               <p><strong>Henüz sonuç yok.</strong></p>
-              <p>Yukarıdan marka/model girip <em>Tüm sitelerde ara</em>'ya bas. Eklenti her siteyi arka planda küçültülmüş bir pencerede açar, ilanları toplar ve burada birleştirir.</p>
+              <p>Yukarıdan marka/model girip <em>Tüm sitelerde ara</em>'ya bas. Eklenti her siteyi önce arka planda indirir, gerekirse küçültülmüş bir pencerede açar; ilanları toplar, aynı ilanın kopyalarını ayıklar ve burada birleştirir. Marka boş bırakılırsa modelden bulunur (ör. "prius" → Toyota).</p>
               <p>Otomatik aranamayan bir sitedeysen eklenti simgesine tıklayıp <em>Bu sayfadaki ilanları topla</em>'yı kullan.</p>
             </div>
           </div>
@@ -151,7 +153,7 @@
       <!-- SİTELER -->
       <section id="tab-sites" class="tab">
         <div class="panel help">
-          <p><strong>Arama şablonları.</strong> Her site için arama URL'si şablondan üretilir. <code>{make}</code>, <code>{model}</code>, <code>{q}</code> (marka + model + kelime), <code>{yearFrom}</code>, <code>{yearTo}</code>, <code>{priceMin}</code>, <code>{priceMax}</code> (sitenin para biriminde), <code>{kmMax}</code>, <code>{milesMax}</code>, <code>{postcode}</code> kullanılabilir. Değiştiriciler: <code>|lower</code> <code>|upper</code> <code>|title</code> <code>|slug</code> <code>|under</code> <code>|plus</code> <code>|enc</code>. <code>[ … ]</code> içindeki kısım, alan boşsa atlanır.</p>
+          <p><strong>Arama şablonları.</strong> Her site için arama URL'si şablondan üretilir. <code>{make}</code>, <code>{model}</code>, <code>{q}</code> (marka + model + kelime), <code>{yearFrom}</code>, <code>{yearTo}</code>, <code>{priceMin}</code>, <code>{priceMax}</code> (sitenin para biriminde), <code>{kmMax}</code>, <code>{milesMax}</code>, <code>{postcode}</code> kullanılabilir. Değiştiriciler: <code>|lower</code> <code>|upper</code> <code>|title</code> <code>|slug</code> <code>|under</code> <code>|plus</code> <code>|enc</code>. <code>[ … ]</code> içindeki kısım, alan boşsa atlanır. Her satıra bir şablon yazılabilir: üstteki önce denenir, gereken alan boşsa (ör. model girilmemişse) alttakine geçilir.</p>
           <p>Bir site URL yapısını değiştirirse: sitede kendi aramanı yap, adres çubuğundaki URL'yi buraya şablon olarak uyarla. Şablonu olmayan siteler otomatik aramaya katılmaz. Onlar için <em>Sitede aç</em>'ı kullanıp eklenti simgesinden sayfayı toplayabilirsin.</p>
         </div>
         <div class="toolbar">
@@ -225,11 +227,15 @@
             <legend>Arama motoru</legend>
             <label>Pencere
               <select name="runner.mode">
-                <option value="background">Arka planda (küçültülmüş pencere)</option>
-                <option value="visible">Görünür pencerede (robot doğrulaması çıkan siteler için)</option>
+                <option value="auto">Otomatik: önce hızlı indir, gerekirse sekmede aç (önerilen)</option>
+                <option value="background">Her zaman sekmede, küçültülmüş pencerede</option>
+                <option value="visible">Her zaman sekmede, görünür pencerede (robot doğrulaması çıkan siteler için)</option>
               </select>
             </label>
-            <label>Aynı anda açılacak site sayısı
+            <label>Site başına en fazla sayfa
+              <input name="runner.maxPages" type="number" min="1" max="10" step="1" />
+            </label>
+            <label>Aynı anda aranacak site sayısı
               <input name="runner.concurrency" type="number" min="1" max="6" />
             </label>
             <label>Sayfa yüklendikten sonra bekleme (ms)
@@ -251,6 +257,7 @@
     </main>
 
     <div id="toast" role="status"></div>
+    <script src="src/scraper.js"></script>
     <script type="module" src="src/dashboard.js"></script>
   </body>
 </html>

@@ -1,7 +1,8 @@
 import { applySiteOverrides, COUNTRY_FLAG, COUNTRY_LABEL, KIND_LABEL, SITES } from './sites.js';
-import { buildUrl, requiredFields, searchVars } from './template.js';
+import { buildFirstUrl, missingFields, searchVars } from './template.js';
 import { CURRENCIES, fetchRates, formatMoney, makeConverter } from './currency.js';
-import { FUEL_LABEL, MAKES, TRANSMISSION_LABEL } from './normalize.js';
+import { FUEL_LABEL, MAKES, TRANSMISSION_LABEL, dedupeListings } from './normalize.js';
+import { matchesQuery, normalizeQuery } from './query.js';
 import { AGE_LABEL, ageStatus, inquiryMessage, landedCost } from './kktc.js';
 import { getFavorites, getResults, getSettings, saveFavorites, saveResults, saveSettings } from './storage.js';
 import { runSearch } from './runner.js';
@@ -35,11 +36,12 @@ const STATUS_TEXT = {
   error: 'hata',
   skipped: 'atlandı',
   cancelled: 'durduruldu',
+  manual: 'elle aç',
 };
 const FAV_STATUSES = ['İnceleniyor', 'Teklif istendi', 'Pazarlıkta', 'Ödeme yapıldı', 'Yolda', 'Teslim alındı', 'Vazgeçildi'];
 const DEFAULT_FILTERS = {
   text: '', country: 'all', yearMin: '', yearMax: '', priceMin: '', priceMax: '', kmMax: '',
-  fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false,
+  fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false, onlyMatching: true,
 };
 const PAGE = 120;
 
@@ -54,6 +56,8 @@ const state = {
   filters: { ...DEFAULT_FILTERS },
   excludedSites: new Set(),
   sort: 'price-asc',
+  query: null, // son aramanın marka/modeli (eşleşme filtresi için)
+  diagnostics: {}, // site kimliği -> son aramanın tanı bilgisi
 };
 let convert = () => null;
 
@@ -145,31 +149,47 @@ function readSearchForm() {
 async function startSearch(e) {
   e.preventDefault();
   if (state.run) return;
-  const form = readSearchForm();
-  await chrome.storage.local.set({ lastSearch: form });
+  const { form, inferred } = normalizeQuery(readSearchForm());
+  // Düzeltilen marka/modeli forma geri yaz (ör. "prius" → Toyota + Prius).
+  for (const k of ['make', 'model', 'keyword']) $('#search-form').elements[k].value = form[k];
+  if (inferred.length) toast(`Arama düzenlendi: ${[form.make, form.model, form.keyword].filter(Boolean).join(' / ')}`);
+  state.query = form.make || form.model ? { make: form.make, model: form.model } : null;
+  await chrome.storage.local.set({ lastSearch: form, lastQuery: state.query });
 
-  const candidates = state.sites.filter((s) => s.enabled && s.template && (form.country === 'all' || s.country === form.country));
+  const inCountry = (s) => form.country === 'all' || s.country === form.country;
   const vars = { ...form, currency: cur(), postcode: state.settings.postcode };
   const jobs = [];
   state.statuses = new Map();
-  for (const site of candidates) {
+  state.diagnostics = {};
+  for (const site of state.sites.filter((s) => s.enabled && s.templates.length && inCountry(s))) {
+    const sv = searchVars(vars, site, convert);
     let url = null;
     try {
-      url = buildUrl(site.template, searchVars(vars, site, convert));
+      url = buildFirstUrl(site.templates, sv);
     } catch (err) {
       state.statuses.set(site.id, { state: 'error', url: site.home, message: err.message });
       continue;
     }
     if (!url) {
-      const need = [...new Set(requiredFields(site.template))].map((f) => FIELD_LABEL[f] || f).join(', ');
-      state.statuses.set(site.id, { state: 'skipped', url: site.home, message: `Bu site için gerekli: ${need}` });
+      const need = missingFields(site.templates, sv).map((f) => FIELD_LABEL[f] || f).join(', ');
+      state.statuses.set(site.id, { state: 'skipped', url: site.home, message: `Bu sitede aramak için gerekli: ${need}` });
       continue;
     }
     jobs.push({ site, url });
   }
+  // Otomatik aranamayan siteler de görünsün: tıklayınca site açılır, "Bu sayfadaki ilanları topla" ile eklenir.
+  for (const site of state.sites.filter((s) => !s.templates.length && inCountry(s))) {
+    state.statuses.set(site.id, {
+      state: 'manual',
+      url: site.home,
+      message: site.login
+        ? 'Bu site üyelik/bayi hesabı istiyor. Sitede giriş yapıp aramanı yap, sonra eklenti simgesinden "Bu sayfadaki ilanları topla".'
+        : 'Bu site otomatik aranamıyor. Sitede aramanı yap, sonra eklenti simgesinden "Bu sayfadaki ilanları topla".',
+    });
+  }
   renderStatus();
   if (!jobs.length) {
-    toast('Aranabilecek site yok. Marka gir ya da Siteler sekmesinden site aç.');
+    toast('Aranabilecek site yok. Marka ya da model gir veya Siteler sekmesinden site aç.');
     return;
   }
 
@@ -183,6 +203,7 @@ async function startSearch(e) {
     priceMax: form.priceMax || '',
     kmMax: form.kmMax || '',
     country: form.country || 'all',
+    onlyMatching: true,
   });
   state.excludedSites.clear();
   syncFilterInputs();
@@ -196,8 +217,10 @@ async function startSearch(e) {
   state.run = runSearch(jobs, {
     mode: r.mode,
     concurrency: Number(r.concurrency) || 3,
-    settleMs: Number(r.settleMs) || 0,
+    settleMs: num(r.settleMs) ?? 2500,
     timeoutMs: Number(r.timeoutMs) || 45000,
+    maxPages: Number(r.maxPages) || 1,
+    query: state.query,
     onUpdate,
   });
   try {
@@ -210,16 +233,21 @@ async function startSearch(e) {
   $('#search-btn').textContent = 'Tüm sitelerde ara';
   $('#stop-btn').hidden = true;
   const ok = [...state.statuses.values()].filter((s) => s.state === 'done').length;
-  toast(`Arama bitti: ${ok} siteden ${state.results.length} ilan.`);
+  const matching = state.query ? state.results.filter((l) => matchesQuery(l, state.query)).length : state.results.length;
+  toast(
+    matching === state.results.length
+      ? `Arama bitti: ${ok} siteden ${state.results.length} ilan.`
+      : `Arama bitti: ${ok} siteden ${state.results.length} ilan, ${matching} tanesi aranan marka/modelle eşleşiyor.`,
+    5000,
+  );
 }
 
 function onUpdate(siteId, st) {
-  const { items, ...rest } = st;
+  const { items, diag, ...rest } = st;
   state.statuses.set(siteId, rest);
+  if (diag) state.diagnostics[siteId] = diag;
   if (items?.length) {
-    const byId = new Map(state.results.map((x) => [x.id, x]));
-    for (const it of items) byId.set(it.id, it);
-    state.results = [...byId.values()];
+    state.results = dedupeListings([...state.results, ...items]);
     persistResults();
     renderResults();
   }
@@ -235,22 +263,39 @@ function stopSearch() {
   renderStatus();
 }
 
+function statusChip(id, st) {
+  const site = state.sites.find((s) => s.id === id);
+  let label = st.state === 'done' ? `${st.count} ${STATUS_TEXT.done}` : STATUS_TEXT[st.state];
+  if (st.state === 'done' && st.pages > 1) label += ` · ${st.pages} sayfa`;
+  if (st.state === 'loading' && st.count) label = `${st.count} ilan, devam ediyor…`;
+  return h(
+    'span',
+    {
+      class: `chip st-${st.state}`,
+      title: `${st.message || ''}${st.message ? '\n' : ''}Tıkla: sitede aç\n${st.url || ''}`,
+      onclick: () => st.url && chrome.tabs.create({ url: st.url }),
+    },
+    h('span', { class: 'dot' }),
+    `${COUNTRY_FLAG[site?.country] || ''} ${site?.name || id}: ${label}`,
+  );
+}
+
 function renderStatus() {
   const box = $('#site-status');
-  box.replaceChildren();
-  for (const [id, st] of state.statuses) {
-    const site = state.sites.find((s) => s.id === id);
-    const label = st.state === 'done' ? `${st.count} ${STATUS_TEXT.done}` : STATUS_TEXT[st.state];
+  const entries = [...state.statuses];
+  const auto = entries.filter(([, st]) => st.state !== 'manual' && st.state !== 'skipped');
+  const skipped = entries.filter(([, st]) => st.state === 'skipped');
+  const manual = entries.filter(([, st]) => st.state === 'manual');
+  const wasOpen = box.querySelector('details')?.open;
+  box.replaceChildren(...[...auto, ...skipped].map(([id, st]) => statusChip(id, st)));
+  if (manual.length) {
     box.append(
       h(
-        'span',
-        {
-          class: `chip st-${st.state}`,
-          title: `${st.message || ''}${st.message ? '\n' : ''}Tıkla: sitede aç\n${st.url || ''}`,
-          onclick: () => st.url && chrome.tabs.create({ url: st.url }),
-        },
-        h('span', { class: 'dot' }),
-        `${COUNTRY_FLAG[site?.country] || ''} ${site?.name || id}: ${label}`,
+        'details',
+        { class: 'manual-sites', open: wasOpen || null },
+        h('summary', { class: 'chip st-manual' }, h('span', { class: 'dot' }), `Otomatik aranamayan ${manual.length} site`),
+        h('p', { class: 'muted' }, 'Bu sitelerde aramayı kendin yap, sonra eklenti simgesinden "Bu sayfadaki ilanları topla"ya bas.'),
+        ...manual.map(([id, st]) => statusChip(id, st)),
       ),
     );
   }
@@ -269,6 +314,7 @@ function filteredResults() {
   const f = state.filters;
   const words = f.text.toLocaleLowerCase('tr').split(/\s+/).filter(Boolean);
   const out = state.results.filter((l) => {
+    if (f.onlyMatching && state.query && !matchesQuery(l, state.query)) return false;
     if (f.country !== 'all' && l.country !== f.country) return false;
     if (state.excludedSites.has(l.siteId)) return false;
     if (words.length) {
@@ -437,8 +483,9 @@ function card(l) {
 function renderResults() {
   renderSiteFilter();
   const list = filteredResults();
+  const unmatched = state.filters.onlyMatching && state.query ? state.results.filter((l) => !matchesQuery(l, state.query)).length : 0;
   $('#result-count').textContent = state.results.length
-    ? `${list.length} ilan gösteriliyor (toplam ${state.results.length})`
+    ? `${list.length} / ${state.results.length} ilan${unmatched ? ` · ${unmatched} tanesi aranan marka/modelle eşleşmediği için gizli` : ''}`
     : '';
   $('#empty-state').hidden = state.results.length > 0;
   const grid = $('#results');
@@ -538,17 +585,22 @@ function renderSites() {
     box.append(h('div', { class: 'site-group' }, `${COUNTRY_FLAG[country]} ${COUNTRY_LABEL[country]}`));
     for (const s of state.sites.filter((x) => x.country === country)) {
       const def = SITES.find((x) => x.id === s.id);
-      const tplInput = h('input', {
+      const tplInput = h('textarea', {
         class: 'tpl',
-        value: s.template || '',
+        rows: Math.max(1, s.templates.length),
+        value: s.templates.join('\n'),
         placeholder: 'Şablon yok: yalnızca "Sitede aç" + sayfayı topla',
+        title: 'Her satıra bir şablon. Üstteki önce denenir; alanlar eksikse alttakine geçilir.',
         onchange: async (e) => {
-          const v = e.target.value.trim();
-          if (v === (def.template || '')) {
-            delete overrides[s.id]?.template;
+          const list = e.target.value.split('\n').map((x) => x.trim()).filter(Boolean);
+          if (list.join('\n') === def.templates.join('\n')) {
+            if (overrides[s.id]) {
+              delete overrides[s.id].templates;
+              delete overrides[s.id].template;
+            }
             await persistSettings();
           } else {
-            await update(s.id, { template: v, enabled: Boolean(v) });
+            await update(s.id, { templates: list, template: undefined, enabled: list.length > 0 });
           }
           renderSites();
         },
@@ -559,9 +611,9 @@ function renderSites() {
           { class: 'site-row' },
           h('input', {
             type: 'checkbox',
-            checked: s.enabled && Boolean(s.template),
-            disabled: !s.template,
-            title: s.template ? 'Otomatik aramaya dahil et' : 'Şablon olmadan otomatik aranamaz',
+            checked: s.enabled,
+            disabled: !s.templates.length,
+            title: s.templates.length ? 'Otomatik aramaya dahil et' : 'Şablon olmadan otomatik aranamaz',
             onchange: (e) => update(s.id, { enabled: e.target.checked }),
           }),
           h(
@@ -573,7 +625,7 @@ function renderSites() {
           h(
             'div',
             { class: 'kind' },
-            s.template
+            s.templates.length
               ? s.customTemplate
                 ? h('span', { class: 'badge risky' }, 'Özel şablon')
                 : s.verified
@@ -589,10 +641,10 @@ function renderSites() {
               'button',
               {
                 type: 'button',
-                disabled: !s.template,
+                disabled: !s.templates.length,
                 title: 'Toyota Prius örneğiyle arama URL\'sini aç',
                 onclick: () => {
-                  const url = buildUrl(s.template, searchVars({ make: 'Toyota', model: 'Prius', currency: cur() }, s, convert));
+                  const url = buildFirstUrl(s.templates, searchVars({ make: 'Toyota', model: 'Prius', currency: cur() }, s, convert));
                   if (url) chrome.tabs.create({ url });
                   else toast('Şablon bu örnekle URL üretemedi.');
                 },
@@ -636,7 +688,7 @@ function renderSettings() {
 async function saveSettingsForm(e) {
   e.preventDefault();
   const form = $('#settings-form');
-  const numeric = new Set(['kktc.maxAgeYears', 'kktc.shippingMonths', 'runner.concurrency', 'runner.settleMs', 'runner.timeoutMs']);
+  const numeric = new Set(['kktc.maxAgeYears', 'kktc.shippingMonths', 'runner.concurrency', 'runner.settleMs', 'runner.timeoutMs', 'runner.maxPages']);
   const newRates = { USD: 1 };
   let ratesChanged = false;
   for (const el of form.elements) {
@@ -666,6 +718,35 @@ async function saveSettingsForm(e) {
 
 function applyCurrencyLabels() {
   $$('.cur-label').forEach((el) => (el.textContent = `(${cur()})`));
+}
+
+// ---------- tanı raporu ----------
+// Sorun bildirmek için: her sitenin istenen/ulaşılan adresi, yöntemi (indirme/sekme),
+// bulunan ilan sayısı ve sayfada tanınan kart yapılarından örnekler. Kişisel ayarlar eklenmez.
+function downloadDiagnostics() {
+  const report = {
+    extension: chrome.runtime.getManifest().version,
+    date: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    runner: state.settings.runner,
+    query: state.query,
+    statuses: Object.fromEntries([...state.statuses].map(([id, st]) => [id, st])),
+    sites: state.diagnostics,
+    results: { total: state.results.length, perSite: Object.fromEntries(countBy(state.results, (l) => l.siteId)) },
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: `kktc-arac-tani-${Date.now()}.json` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function countBy(list, fn) {
+  const m = new Map();
+  for (const x of list) m.set(fn(x), (m.get(fn(x)) || 0) + 1);
+  return m;
 }
 
 // ---------- CSV ----------
@@ -714,7 +795,8 @@ async function init() {
   state.favorites = await getFavorites();
 
   $('#makes').replaceChildren(...MAKES.map((m) => h('option', { value: m })));
-  const { lastSearch } = await chrome.storage.local.get('lastSearch');
+  const { lastSearch, lastQuery } = await chrome.storage.local.get(['lastSearch', 'lastQuery']);
+  state.query = lastQuery || null;
   if (lastSearch) {
     for (const [k, v] of Object.entries(lastSearch)) {
       const el = $('#search-form').elements[k];
@@ -757,6 +839,7 @@ async function init() {
     renderResults();
   });
   $('#export-results').addEventListener('click', () => downloadCsv('kktc-arac-sonuclar.csv', filteredResults(), listingCols()));
+  $('#export-diag').addEventListener('click', downloadDiagnostics);
   $('#export-favorites').addEventListener('click', () => {
     const favs = Object.values(state.favorites);
     const cols = [...listingCols(), ['Durum', (f) => f.status], ['Not', (f) => f.note]].map(([n, fn], i, arr) =>
@@ -784,8 +867,9 @@ async function init() {
     const known = new Set(state.results.map((x) => x.id));
     const fresh = (changes.results.newValue || []).filter((it) => !known.has(it.id));
     if (!fresh.length) return;
-    state.results = [...state.results, ...fresh];
-    renderResults();
+    const before = state.results.length;
+    state.results = dedupeListings([...state.results, ...fresh]);
+    if (state.results.length !== before) renderResults();
   });
 
   applyCurrencyLabels();

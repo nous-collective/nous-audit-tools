@@ -57,7 +57,22 @@ export function buildUrl(template, vars) {
 export function requiredFields(template) {
   if (!template) return [];
   const outside = template.replace(/\[[^[\]]*\]/g, '');
-  return [...outside.matchAll(/\{(\w+)/g)].map((m) => m[1]);
+  return [...new Set([...outside.matchAll(/\{(\w+)/g)].map((m) => m[1]))];
+}
+
+// Şablon listesinden URL üretebilen ilkini kullanır (özelden genele).
+export function buildFirstUrl(templates, vars) {
+  for (const t of templates || []) {
+    const url = buildUrl(t, vars);
+    if (url) return url;
+  }
+  return null;
+}
+
+// Hiçbir şablon URL üretemediğinde eksik olan alanlar (en genel şablona göre).
+export function missingFields(templates, vars) {
+  const last = (templates || []).at(-1);
+  return requiredFields(last).filter((f) => vars[f] === undefined || vars[f] === null || String(vars[f]).trim() === '');
 }
 
 // Arama formundaki değerlerden şablon değişkenlerini üretir.

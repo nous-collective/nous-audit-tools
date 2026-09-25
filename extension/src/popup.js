@@ -27,7 +27,9 @@ async function capture() {
   btn.disabled = true;
   say('Sayfa taranıyor…');
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // ?tab=<id>: testlerde popup ayrı sekmede açıldığında hedef sekme.
+    const forced = Number(new URLSearchParams(location.search).get('tab'));
+    const [tab] = forced ? [await chrome.tabs.get(forced)] : await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !/^https?:/.test(tab.url || '')) throw new Error('Bu sayfa taranamaz. Bir ilan sitesinde olmalısın.');
     const raw = await scrapeTab(tab.id, { scroll: true });
     const site = siteForUrl(raw.url);
@@ -37,7 +39,12 @@ async function capture() {
       return;
     }
     const added = await addResults(items);
-    say(`${items.length} ilan bulundu, ${added} yeni ilan panele eklendi.`, 'ok');
+    say(
+      added
+        ? `${items.length} ilan bulundu, ${added} yeni ilan panele eklendi.`
+        : `${items.length} ilan bulundu; hepsi panelde zaten vardı.`,
+      'ok',
+    );
   } catch (e) {
     say(e.message, 'err');
   } finally {

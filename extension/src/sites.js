@@ -1,10 +1,14 @@
 // Desteklenen siteler.
 //
-// template: arama URL şablonu (bkz. template.js). null ise site otomatik
-//   aramaya katılmaz; "Sitede aç" + "Bu sayfadaki ilanları topla" ile kullanılır.
-// verified: şablonun URL yapısı sitenin gerçek sayfalarıyla doğrulandı mı.
+// templates: arama URL şablonları (bkz. template.js), en özelden en genele.
+//   İlk URL üretebilen şablon kullanılır; örn. model girilmemişse yalnızca
+//   markayla arayan şablona düşülür. Boş liste: site otomatik aramaya katılmaz,
+//   "Sitede aç" + "Bu sayfadaki ilanları topla" ile kullanılır.
+// verified: şablonların URL yapısı sitenin gerçek sayfalarıyla doğrulandı mı.
 // currency: sitenin fiyat filtresinde kullandığı para birimi ({priceMax} bu
 //   birime çevrilir).
+// render: 'tab' ise sayfa doğrudan indirilmez, her zaman sekmede açılır
+//   (ilanları tamamen JavaScript ile çizen siteler).
 // kind: exporter (Japon ihracatçı), marketplace (ilan sitesi), auction
 //   (açık artırma), agent (mezat aracısı).
 // login: ilanları görmek / teklif vermek için üyelik veya bayi hesabı gerekir.
@@ -15,9 +19,11 @@ export const SITES = [
     id: 'beforward',
     name: 'BE FORWARD',
     country: 'JP',
-    home: 'https://www.beforward.jp/',
-    template: 'https://www.beforward.jp/stocklist/keyword={q|enc}[/fob_price_to={priceMax}]',
-    verified: false,
+    home: 'https://www.beforward.jp/stocklist',
+    templates: [
+      'https://www.beforward.jp/stocklist/keyword={q|enc}[/mfg_year_from={yearFrom}][/mfg_year_to={yearTo}][/fob_price_to={priceMax}]',
+    ],
+    verified: true,
     currency: 'USD',
     kind: 'exporter',
   },
@@ -25,8 +31,8 @@ export const SITES = [
     id: 'sbt',
     name: 'SBT Japan',
     country: 'JP',
-    home: 'https://www.sbtjapan.com/',
-    template: 'https://www.sbtjapan.com/used-cars/{make|slug}/[{model|slug}/]',
+    home: 'https://www.sbtjapan.com/used-cars/',
+    templates: ['https://www.sbtjapan.com/used-cars/{make|slug}/[{model|slug}/]'],
     verified: true,
     currency: 'USD',
     kind: 'exporter',
@@ -36,7 +42,7 @@ export const SITES = [
     name: 'Car From Japan',
     country: 'JP',
     home: 'https://carfromjapan.com/',
-    template: 'https://carfromjapan.com/cheap-used-{make|slug}[-{model|slug}]-for-sale',
+    templates: ['https://carfromjapan.com/cheap-used-{make|slug}[-{model|slug}]-for-sale'],
     verified: true,
     currency: 'USD',
     kind: 'exporter',
@@ -45,8 +51,8 @@ export const SITES = [
     id: 'tcv',
     name: 'TCV (tradecarview)',
     country: 'JP',
-    home: 'https://www.tc-v.com/',
-    template: 'https://www.tc-v.com/used_car/{make|lower|enc}/[{model|lower|enc}/]',
+    home: 'https://www.tc-v.com/used_car/all/all/',
+    templates: ['https://www.tc-v.com/used_car/{make|lower|enc}/[{model|lower|enc}/]'],
     verified: true,
     currency: 'USD',
     kind: 'marketplace',
@@ -56,7 +62,7 @@ export const SITES = [
     name: 'Goo-net Exchange',
     country: 'JP',
     home: 'https://www.goo-net-exchange.com/',
-    template: 'https://www.goo-net-exchange.com/usedcars/{make|upper|under}/[{model|upper|under}/]',
+    templates: ['https://www.goo-net-exchange.com/usedcars/{make|upper|under}/[{model|upper|under}/]'],
     verified: true,
     currency: 'JPY',
     kind: 'marketplace',
@@ -66,7 +72,7 @@ export const SITES = [
     name: 'Real Motor Japan',
     country: 'JP',
     home: 'https://www.realmotor.jp/',
-    template: 'https://www.realmotor.jp/stock/{make|upper|enc}[/{model|upper|enc}]',
+    templates: ['https://www.realmotor.jp/stock/{make|upper|enc}[/{model|upper|enc}]'],
     verified: true,
     currency: 'USD',
     kind: 'exporter',
@@ -75,8 +81,8 @@ export const SITES = [
     id: 'picknbuy24',
     name: 'PicknBuy24',
     country: 'JP',
-    home: 'https://www.picknbuy24.com/',
-    template: 'https://www.picknbuy24.com/usedcar/?maker={make|lower|plus}[&model={model|lower|plus}]',
+    home: 'https://www.picknbuy24.com/usedcar/',
+    templates: ['https://www.picknbuy24.com/usedcar/?maker={make|lower|plus}[&model={model|lower|plus}]'],
     verified: true,
     currency: 'USD',
     kind: 'exporter',
@@ -86,7 +92,7 @@ export const SITES = [
     name: 'CardealPage',
     country: 'JP',
     home: 'https://www.cardealpage.com/',
-    template: 'https://www.cardealpage.com/{make|lower|enc}/[{model|slug}/]',
+    templates: ['https://www.cardealpage.com/{make|lower|enc}/[{model|slug}/]'],
     verified: true,
     currency: 'USD',
     kind: 'exporter',
@@ -96,17 +102,36 @@ export const SITES = [
     name: 'Car Junction',
     country: 'JP',
     home: 'https://www.carjunction.com/',
-    template: 'https://www.carjunction.com/make/{make|slug}/{model|slug}.html',
+    templates: [
+      'https://www.carjunction.com/make/{make|slug}/{model|slug}.html',
+      'https://www.carjunction.com/make/{make|slug}.html',
+    ],
     verified: true,
     currency: 'USD',
     kind: 'exporter',
   },
-  { id: 'autorec', name: 'Autorec', country: 'JP', home: 'https://www.autorec.co.jp/', template: null, verified: false, currency: 'USD', kind: 'exporter' },
-  { id: 'enhanceauto', name: 'Enhance Auto', country: 'JP', home: 'https://www.enhanceauto.com/', template: null, verified: false, currency: 'USD', kind: 'exporter' },
-  { id: 'tomisho', name: 'Tomisho', country: 'JP', home: 'https://www.tomisho.com/', template: null, verified: false, currency: 'USD', kind: 'exporter' },
-  { id: 'satjapan', name: 'SAT Japan', country: 'JP', home: 'https://www.satjapan.com/', template: null, verified: false, currency: 'USD', kind: 'exporter' },
-  { id: 'japancardirect', name: 'Japan Car Direct (mezat aracısı)', country: 'JP', home: 'https://www.japancardirect.com/', template: null, verified: false, currency: 'USD', kind: 'agent' },
-  { id: 'carsjapancy', name: 'CarsJapan Cyprus (mezat aracısı)', country: 'JP', home: 'https://carsjapan.cy/', template: null, verified: false, currency: 'EUR', kind: 'agent' },
+  {
+    id: 'satjapan',
+    name: 'SAT Japan',
+    country: 'JP',
+    home: 'https://satjapan.com/used-cars',
+    templates: ['https://satjapan.com/used-cars/mk_{make|slug}[/md_{model|slug}]'],
+    verified: true,
+    currency: 'USD',
+    kind: 'exporter',
+  },
+  {
+    id: 'autorec',
+    name: 'Autorec',
+    country: 'JP',
+    home: 'https://www.autorec.co.jp/car-stock',
+    templates: ['https://www.autorec.co.jp/used-cars-list.php?Sort=1&post_maker={make|upper|enc}'],
+    verified: true,
+    currency: 'USD',
+    kind: 'exporter',
+  },
+  { id: 'japancardirect', name: 'Japan Car Direct (mezat aracısı)', country: 'JP', home: 'https://www.japancardirect.com/', templates: [], verified: false, currency: 'USD', kind: 'agent' },
+  { id: 'carsjapancy', name: 'CarsJapan Cyprus (mezat aracısı)', country: 'JP', home: 'https://carsjapan.cy/', templates: [], verified: false, currency: 'EUR', kind: 'agent' },
 
   // --- İngiltere ---
   {
@@ -114,9 +139,8 @@ export const SITES = [
     name: 'AutoTrader UK',
     country: 'UK',
     home: 'https://www.autotrader.co.uk/',
-    template:
-      'https://www.autotrader.co.uk/car-search?make={make|enc}[&model={model|enc}][&year-from={yearFrom}][&year-to={yearTo}][&price-to={priceMax}][&maximum-mileage={milesMax}][&postcode={postcode|enc}]',
-    verified: false,
+    templates: ['https://www.autotrader.co.uk/cars/used/{make|slug}[/{model|slug}]'],
+    verified: true,
     currency: 'GBP',
     kind: 'marketplace',
   },
@@ -125,8 +149,8 @@ export const SITES = [
     name: 'eBay Motors UK',
     country: 'UK',
     home: 'https://www.ebay.co.uk/b/Cars/9801/bn_1839671',
-    template: 'https://www.ebay.co.uk/sch/i.html?_sacat=9801&_nkw={q|plus}[&_udlo={priceMin}][&_udhi={priceMax}]',
-    verified: false,
+    templates: ['https://www.ebay.co.uk/sch/i.html?_sacat=9801&_nkw={q|plus}[&_udlo={priceMin}][&_udhi={priceMax}]'],
+    verified: true,
     currency: 'GBP',
     kind: 'marketplace',
   },
@@ -135,7 +159,7 @@ export const SITES = [
     name: 'Gumtree',
     country: 'UK',
     home: 'https://www.gumtree.com/cars',
-    template: 'https://www.gumtree.com/cars-vans-motorbikes/cars/{make|slug}[/{model|slug}]',
+    templates: ['https://www.gumtree.com/cars-vans-motorbikes/cars/{make|slug}[/{model|slug}]'],
     verified: true,
     currency: 'GBP',
     kind: 'marketplace',
@@ -145,7 +169,7 @@ export const SITES = [
     name: 'Motors.co.uk (Cazoo)',
     country: 'UK',
     home: 'https://www.motors.co.uk/',
-    template: 'https://www.motors.co.uk/{make|slug}/[{model|slug}/]used-cars/',
+    templates: ['https://www.motors.co.uk/{make|slug}/[{model|slug}/]used-cars/'],
     verified: true,
     currency: 'GBP',
     kind: 'marketplace',
@@ -155,7 +179,7 @@ export const SITES = [
     name: 'PistonHeads',
     country: 'UK',
     home: 'https://www.pistonheads.com/buy',
-    template: 'https://www.pistonheads.com/buy/{make|slug}[/{model|slug}]',
+    templates: ['https://www.pistonheads.com/buy/{make|slug}[/{model|slug}]'],
     verified: true,
     currency: 'GBP',
     kind: 'marketplace',
@@ -165,7 +189,7 @@ export const SITES = [
     name: 'cinch',
     country: 'UK',
     home: 'https://www.cinch.co.uk/used-cars',
-    template: 'https://www.cinch.co.uk/used-cars/{make|slug}[/{model|slug}]',
+    templates: ['https://www.cinch.co.uk/used-cars/{make|slug}[/{model|slug}]'],
     verified: true,
     currency: 'GBP',
     kind: 'marketplace',
@@ -175,7 +199,17 @@ export const SITES = [
     name: 'Carwow',
     country: 'UK',
     home: 'https://www.carwow.co.uk/used-cars',
-    template: 'https://www.carwow.co.uk/{make|slug}/{model|slug}/used',
+    templates: ['https://www.carwow.co.uk/{make|slug}/{model|slug}/used', 'https://www.carwow.co.uk/{make|slug}/used'],
+    verified: true,
+    currency: 'GBP',
+    kind: 'marketplace',
+  },
+  {
+    id: 'exchangeandmart',
+    name: 'Exchange & Mart',
+    country: 'UK',
+    home: 'https://www.exchangeandmart.co.uk/',
+    templates: ['https://www.exchangeandmart.co.uk/used-cars-for-sale/{make|slug}[/{model|slug}]'],
     verified: true,
     currency: 'GBP',
     kind: 'marketplace',
@@ -185,17 +219,17 @@ export const SITES = [
     name: 'Copart UK (hasarlı/pert)',
     country: 'UK',
     home: 'https://www.copart.co.uk/',
-    template: 'https://www.copart.co.uk/lotSearchResults?query={q|enc}',
-    verified: false,
+    templates: ['https://www.copart.co.uk/lotSearchResults/?free=true&query={q|plus}'],
+    verified: true,
     currency: 'GBP',
     kind: 'auction',
+    render: 'tab',
     login: true,
   },
-  { id: 'cargurus', name: 'CarGurus UK', country: 'UK', home: 'https://www.cargurus.co.uk/', template: null, verified: false, currency: 'GBP', kind: 'marketplace' },
-  { id: 'exchangeandmart', name: 'Exchange & Mart', country: 'UK', home: 'https://www.exchangeandmart.co.uk/', template: null, verified: false, currency: 'GBP', kind: 'marketplace' },
-  { id: 'bca', name: 'BCA (bayi mezatı)', country: 'UK', home: 'https://www.bca.co.uk/', template: null, verified: false, currency: 'GBP', kind: 'auction', login: true },
-  { id: 'manheim', name: 'Manheim UK (bayi mezatı)', country: 'UK', home: 'https://www.manheim.co.uk/', template: null, verified: false, currency: 'GBP', kind: 'auction', login: true },
-  { id: 'astonbarclay', name: 'Aston Barclay (bayi mezatı)', country: 'UK', home: 'https://www.astonbarclay.net/', template: null, verified: false, currency: 'GBP', kind: 'auction', login: true },
+  { id: 'cargurus', name: 'CarGurus UK', country: 'UK', home: 'https://www.cargurus.co.uk/', templates: [], verified: false, currency: 'GBP', kind: 'marketplace' },
+  { id: 'bca', name: 'BCA (bayi mezatı)', country: 'UK', home: 'https://www.bca.co.uk/', templates: [], verified: false, currency: 'GBP', kind: 'auction', login: true },
+  { id: 'manheim', name: 'Manheim UK (bayi mezatı)', country: 'UK', home: 'https://www.manheim.co.uk/', templates: [], verified: false, currency: 'GBP', kind: 'auction', login: true },
+  { id: 'astonbarclay', name: 'Aston Barclay (bayi mezatı)', country: 'UK', home: 'https://www.astonbarclay.net/', templates: [], verified: false, currency: 'GBP', kind: 'auction', login: true },
 ];
 
 export const COUNTRY_LABEL = { JP: 'Japonya', UK: 'İngiltere' };
@@ -225,17 +259,25 @@ export function siteForUrl(url, sites = SITES) {
   }) || null;
 }
 
+// Kullanıcının kaydettiği şablon(lar)ı listeye çevirir. Eski sürümler tek
+// "template" dizesi saklıyordu.
+function overrideTemplates(o) {
+  if (Array.isArray(o.templates)) return o.templates.map((t) => String(t).trim()).filter(Boolean);
+  if (typeof o.template === 'string') return o.template.trim() ? [o.template.trim()] : [];
+  return null;
+}
+
 // Varsayılan site listesine kullanıcının ayarlarını (açık/kapalı, şablon) uygular.
 export function applySiteOverrides(overrides = {}) {
   return SITES.map((s) => {
     const o = overrides[s.id] || {};
-    const custom = typeof o.template === 'string';
-    const template = custom ? o.template || null : s.template;
+    const custom = overrideTemplates(o);
+    const templates = custom ?? s.templates;
     return {
       ...s,
-      enabled: Boolean(template) && (o.enabled ?? true),
-      template,
-      customTemplate: custom,
+      enabled: templates.length > 0 && (o.enabled ?? true),
+      templates,
+      customTemplate: custom !== null,
     };
   });
 }

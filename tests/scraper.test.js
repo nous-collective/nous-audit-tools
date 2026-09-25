@@ -113,3 +113,70 @@ test('Robot doğrulaması ve boş sayfa', async () => {
   assert.equal(e.blocked, false);
   assert.equal(e.items.length, 0, 'menü/footer listeleri ilan sayılmaz');
 });
+
+test('Aynı ilanın kopyaları tek ilan: refkey, gizli mobil kopya, JSON-LD', async () => {
+  const raw = await scrape('/dupes');
+  const items = toListings(raw.items, { id: 'd', name: 'D', country: 'JP' }, raw.url);
+  assert.equal(items.length, 6, items.map((x) => x.url).join('\n'));
+  assert.ok(items.every((x) => !x.url.includes('refkey') && !x.url.includes('/m/')));
+  const a = items.find((x) => x.url.endsWith('/toyota/prius/3000/') || x.url.endsWith('/toyota/prius/3000'));
+  assert.equal(a.price, 8000);
+  assert.equal(a.km, 50000, 'JSON-LD ile DOM birleşir: km DOM\'dan gelir');
+  assert.ok(raw.diag.hiddenSkipped >= 6, 'gizli mobil kartlar sayılmaz');
+});
+
+test('İndirilmiş HTML (DOMParser) ile okuma: gizli kopyalar yine tek ilan', async () => {
+  const page = await browser.newPage();
+  await page.goto(srv.base + '/empty');
+  await page.addScriptTag({ content: SCRAPER });
+  const res = await page.evaluate(async (base) => {
+    const out = {};
+    for (const path of ['/jp-grid', '/dupes', '/uk-cards']) {
+      const html = await (await fetch(base + path)).text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const r = await globalThis.__kktcScraper.run({ doc, baseUrl: base + path });
+      out[path] = r.items;
+    }
+    return out;
+  }, srv.base);
+  await page.close();
+  assert.equal(toListings(res['/jp-grid'], null, srv.base + '/jp-grid').length, 20);
+  assert.equal(toListings(res['/uk-cards'], null, srv.base + '/uk-cards').length, 12);
+  // Düzen bilgisi yokken gizli mobil kopya DOM'da kalır ama içerik parmak izi aynı olduğu için birleşir.
+  const d = toListings(res['/dupes'], { id: 'd', name: 'D', country: 'JP' }, srv.base + '/dupes');
+  assert.equal(d.length, 6, d.map((x) => x.url).join('\n'));
+  assert.ok(res['/jp-grid'].every((x) => x.url.startsWith(srv.base)), 'göreli bağlantılar sayfa adresine göre çözülür');
+});
+
+test('Fiyatı ASK olan kartlar alınır, fiyat filtresi bağlantıları alınmaz', async () => {
+  const raw = await scrape('/ask-price');
+  const items = toListings(raw.items, null, raw.url);
+  assert.equal(items.length, 5, items.map((x) => x.url).join('\n'));
+  assert.ok(items.every((x) => /\/stock\/77\d\d$/.test(x.url)));
+  assert.equal(items[0].price, null);
+  assert.equal(items.find((x) => x.url.endsWith('/7700')).year, 2020);
+});
+
+test('Sonraki sayfa bağlantısı', async () => {
+  const p1 = await scrape('/paged/1');
+  assert.equal(p1.next, `${srv.base}/paged/2`);
+  const p3 = await scrape('/paged/3');
+  assert.equal(p3.next, null);
+  assert.equal(toListings(p1.items, null, p1.url).length, 4);
+});
+
+test('Türk lirası fiyatlar', async () => {
+  const raw = await scrape('/try');
+  const items = toListings(raw.items, null, raw.url);
+  assert.equal(items.length, 3);
+  assert.equal(items.find((x) => x.url.endsWith('/ilan/900')).price, 1250000);
+  assert.equal(items[0].currency, 'TRY');
+  assert.equal(items.find((x) => x.url.endsWith('/ilan/900')).km, 30000);
+});
+
+test('Liste ile aynı adresteki ?id= detay bağlantıları alınır', async () => {
+  const raw = await scrape('/same');
+  const items = toListings(raw.items, null, raw.url);
+  assert.equal(items.length, 4);
+  assert.ok(items.every((x) => /\/same\?id=50\d/.test(x.url)), items.map((x) => x.url).join('\n'));
+});

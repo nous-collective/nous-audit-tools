@@ -19,11 +19,16 @@ const MAKE_ALIASES = [
 ].sort((a, b) => b[0].length - a[0].length);
 
 const CURRENCY_CODES = {
-  'US$': 'USD', 'US $': 'USD', USD: 'USD', $: 'USD',
+  'US$': 'USD', USD: 'USD', $: 'USD',
   '£': 'GBP', GBP: 'GBP',
-  '¥': 'JPY', '￥': 'JPY', JPY: 'JPY', 円: 'JPY', 万円: 'JPY',
+  '¥': 'JPY', '￥': 'JPY', 'JP¥': 'JPY', JPY: 'JPY', 円: 'JPY', 万円: 'JPY',
   '€': 'EUR', EUR: 'EUR',
+  '₺': 'TRY', TL: 'TRY', TRY: 'TRY',
 };
+
+// Fiyat kalıbı. scraper.js'teki PRICE_SRC ile aynı olmalı (testte kontrol edilir).
+export const PRICE_PATTERN =
+  "(US\\s?\\$|USD|JP¥|\\$|£|GBP|¥|￥|JPY|€|EUR|₺|TRY|TL)\\s?(\\d{1,3}(?:[,.\\u00a0\\u202f']\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)(\\s?万)?|(\\d{1,3}(?:[,.\\u00a0\\u202f']\\d{3})+|\\d+(?:\\.\\d+)?)\\s?(万円|円|JPY|USD|GBP|EUR|€|₺|TRY|TL)(?![A-Za-z\\d])";
 
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
@@ -37,8 +42,7 @@ function toNumber(s) {
 
 export function parsePrice(text) {
   if (!text) return null;
-  const re =
-    /(US\s?\$|USD|\$|£|GBP|¥|￥|JPY|€|EUR)\s?(\d{1,3}(?:[,.  ']\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(\s?万)?|(\d{1,3}(?:[,.  ']\d{3})+|\d+(?:\.\d+)?)\s?(万円|円|JPY|USD|GBP|EUR|€)/i;
+  const re = new RegExp(PRICE_PATTERN, 'i');
   const m = text.match(re);
   if (!m) return null;
   let sym, num, man;
@@ -51,7 +55,7 @@ export function parsePrice(text) {
     sym = m[5].toUpperCase();
     man = sym === '万円';
   }
-  const currency = CURRENCY_CODES[sym] || CURRENCY_CODES[sym.replace('US', 'US$')] || null;
+  const currency = CURRENCY_CODES[sym] || null;
   let amount = toNumber(num);
   if (!currency || !Number.isFinite(amount)) return null;
   if (man) amount *= 10000;
@@ -166,18 +170,101 @@ export function detectMake(text) {
   return null;
 }
 
+// Görüntülenen bağlantıdan yalnızca bilinen izleme parametrelerini atar.
 export function cleanUrl(url) {
   try {
     const u = new URL(url);
     if (!/^https?:$/.test(u.protocol)) return null;
     u.hash = '';
     for (const k of [...u.searchParams.keys()]) {
-      if (/^(utm_|gclid|fbclid|_trkparms|_trksid|hash$)/i.test(k)) u.searchParams.delete(k);
+      if (/^(utm_|gclid|fbclid|msclkid|yclid|dclid|mc_[ce]id|_trkparms|_trksid|hash$)/i.test(k)) u.searchParams.delete(k);
     }
     return u.toString();
   } catch {
     return null;
   }
+}
+
+// İlan kimliğini belirleyen sorgu parametreleri (stok/ilan numarası).
+const ID_PARAM =
+  /^(id|refno|ref_?no|stock_?(no|id|number)?|item_?id|item|lot_?(id|no)?|car_?id|vehicle_?id|vid|ad_?id|advert_?id|listing_?id|product_?id|pid|chassis_?no)$/i;
+// Kimliği etkilemeyen parametreler (izleme, sıralama, arama oturumu…).
+const NOISE_PARAM =
+  /^(utm_|gclid|fbclid|msclkid|yclid|dclid|mc_|_trk|hash$|ref$|refkey|ref_?src|source|src|from|position|pos$|sp$|search_?id|sid$|session|sort|order|page$|index|rank|click_?id|campaign|cmp_?id|cid$|tracking|advertising-location|journey|onesearchad|channel|include-delivery-option|lang$|currency$|country$)/i;
+
+/**
+ * Aynı ilana giden farklı bağlantıları (fotoğraf bağlantısı ?refkey=…, başlık
+ * bağlantısı parametresiz, mobil sp./m. alt alan adı, sondaki "/"…) tek anahtara indirger.
+ */
+export function listingKey(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return url;
+  }
+  const host = u.hostname.toLowerCase().replace(/^(www\d?|m|sp|mobile)\./, '');
+  let path = u.pathname.replace(/\/index\.(html?|php|aspx?)$/i, '').replace(/\/+$/, '') || '/';
+  try {
+    path = decodeURIComponent(path);
+  } catch {}
+  path = path.toLowerCase();
+  const params = [...u.searchParams].filter(([, v]) => v !== '');
+  const idParams = params.filter(([k]) => ID_PARAM.test(k));
+  const lastSeg = path.split('/').filter(Boolean).pop() || '';
+  let query = [];
+  if (idParams.length) query = idParams;
+  else if (!/\d{3,}/.test(lastSeg)) query = params.filter(([k]) => !NOISE_PARAM.test(k));
+  const q = query
+    .map(([k, v]) => `${k.toLowerCase()}=${v.toLowerCase()}`)
+    .sort()
+    .join('&');
+  return `${host}${path}${q ? `?${q}` : ''}`;
+}
+
+const squashTitle = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+
+// Farklı bağlantılı aynı ilan (mobil/masaüstü kopya vb.): aynı sitede aynı fiyat + km + yıl.
+// Km yazmıyorsa başlık da aranır. Kopyaların başlığı farklı okunabildiği için km varken başlığa bakılmaz.
+function fingerprint(l) {
+  if (l.price == null) return null;
+  if (l.km != null) return [l.siteId, l.price, l.currency, l.km, l.year ?? ''].join('|');
+  if (l.year) return [l.siteId, l.price, l.currency, l.year, squashTitle(l.title)].join('|');
+  return null;
+}
+
+// İki kayıttan boş olmayan alanları birleştirir; kısa (parametresiz) bağlantı tercih edilir.
+export function mergeListing(a, b) {
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    if (out[k] === null || out[k] === undefined || out[k] === '') out[k] = v;
+  }
+  // Parametresiz bağlantı tercih edilir (izleme parametresi taşımayan asıl ilan adresi).
+  if (b.url && a.url?.includes('?') && !b.url.includes('?')) out.url = b.url;
+  if ((b.title || '').length > (a.title || '').length && (b.title || '').length <= 160 && !a.title) out.title = b.title;
+  out.id = a.id;
+  return out;
+}
+
+export function dedupeListings(list) {
+  const byId = new Map();
+  for (const l of list) {
+    if (!l) continue;
+    byId.set(l.id, byId.has(l.id) ? mergeListing(byId.get(l.id), l) : l);
+  }
+  const byPrint = new Map();
+  const out = [];
+  for (const l of byId.values()) {
+    const fp = fingerprint(l);
+    const prev = fp && byPrint.get(fp);
+    if (prev) {
+      out[prev.index] = mergeListing(out[prev.index], l);
+      continue;
+    }
+    if (fp) byPrint.set(fp, { index: out.length });
+    out.push(l);
+  }
+  return out;
 }
 
 function cleanText(s, max = 200) {
@@ -191,7 +278,9 @@ export function toListing(raw, site, pageUrl) {
   if (!url) return null;
   const s = raw.structured || {};
   const text = raw.text || '';
-  const title = cleanText(raw.title || text, 160);
+  // Başlık bulunamadıysa kart metninin fiyattan/km'den önceki kısmı kullanılır.
+  const lead = text.split(new RegExp(`${PRICE_PATTERN}|\\d[\\d,.]*\\s?(?:km|miles)\\b`, 'i'))[0];
+  const title = cleanText(raw.title || (lead && lead.trim().length >= 4 ? lead : text), 160);
   if (!title) return null;
 
   let price = s.price && s.currency ? { amount: Number(s.price), currency: s.currency.toUpperCase() } : null;
@@ -218,7 +307,7 @@ export function toListing(raw, site, pageUrl) {
   } catch {}
 
   return {
-    id: url,
+    id: listingKey(url),
     url,
     siteId: site?.id || `host:${host}`,
     siteName: site?.name || host,
@@ -243,13 +332,5 @@ export function toListing(raw, site, pageUrl) {
 }
 
 export function toListings(raws, site, pageUrl) {
-  const seen = new Set();
-  const out = [];
-  for (const r of raws || []) {
-    const l = toListing(r, site, pageUrl);
-    if (!l || seen.has(l.id)) continue;
-    seen.add(l.id);
-    out.push(l);
-  }
-  return out;
+  return dedupeListings((raws || []).map((r) => toListing(r, site, pageUrl)));
 }

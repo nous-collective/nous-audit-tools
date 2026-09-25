@@ -104,6 +104,81 @@ export function empty() {
   return layout('No results', '<main><p>No vehicles match your search.</p></main>');
 }
 
+// Aynı ilanın birden fazla temsili: fotoğraf bağlantısı ?refkey=…, başlık bağlantısı parametresiz,
+// CSS ile gizlenmiş mobil kopya (farklı adres), JSON-LD'de kanonik adres.
+export function dupes(n = 6) {
+  const cards = Array.from({ length: n }, (_, i) => `<div class="car-card">
+      <a href="/toyota/prius/${3000 + i}/?refkey=abc${i}"><img src="/p/${i}.jpg" width="200"></a>
+      <h3><a href="/toyota/prius/${3000 + i}/">2019 TOYOTA PRIUS A ${i}</a></h3>
+      <p>FOB US$${(8000 + i * 100).toLocaleString('en-US')}</p><p>${50 + i},000 km</p></div>`).join('');
+  const mobile = Array.from({ length: n }, (_, i) => `<div class="m-card">
+      <a href="/m/car.php?c=${3000 + i}&view=m"><img src="/p/${i}.jpg" width="100"></a>
+      <span class="t">2019 TOYOTA PRIUS A ${i}</span><b>US$${(8000 + i * 100).toLocaleString('en-US')}</b><i>${50 + i},000 km</i></div>`).join('');
+  const ld = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: Array.from({ length: n }, (_, i) => ({
+      '@type': 'ListItem',
+      item: { '@type': 'Car', name: `2019 TOYOTA PRIUS A ${i}`, url: `/toyota/prius/${3000 + i}`, offers: { price: 8000 + i * 100, priceCurrency: 'USD' } },
+    })),
+  };
+  return layout(
+    'Dupes',
+    `<main><div class="desktop-list">${cards}</div><div class="mobile-list">${mobile}</div></main>`,
+    `<style>.mobile-list{display:none}</style><script type="application/ld+json">${JSON.stringify(ld)}</script>`,
+  );
+}
+
+// Fiyatı "ASK" olan, km'si yazmayan kartlar + fiyat aralığı filtre bağlantıları.
+export function askPrice() {
+  const cards = Array.from({ length: 5 }, (_, i) => `<article class="stock">
+      <a href="/stock/${7700 + i}"><img src="/s/${i}.jpg" width="160"></a>
+      <a href="/stock/${7700 + i}" class="name">${2020 + (i % 3)} NISSAN NOTE e-POWER X</a>
+      <div class="price">Price: ASK</div><div>Hybrid · Automatic</div></article>`).join('');
+  const facets = ['1,000', '2,000', '3,000', '5,000', '8,000', '10,000']
+    .map((p) => `<li class="facet"><a href="/ask-price?price_to=${p.replace(',', '')}">Under US$${p}</a></li>`)
+    .join('');
+  return layout('ASK', `<aside><ul class="facets">${facets}</ul></aside><main>${cards}</main>`);
+}
+
+// Sayfalama: /paged/1 → /paged/2 → /paged/3 (son sayfa).
+export function paged(page) {
+  const cards = Array.from({ length: 4 }, (_, i) => {
+    const id = page * 100 + i;
+    return `<li class="res"><a href="/car/${id}"><img src="/c/${id}.jpg" width="150"><h4>2021 Honda Vezel ${id}</h4></a><span>£${(15000 + id).toLocaleString('en-GB')}</span><span>${20 + i},000 miles</span></li>`;
+  }).join('');
+  const nav = page < 3 ? `<nav class="pagination"><a href="/paged/${page + 1}" rel="next" aria-label="Next page">›</a></nav>` : '';
+  return layout(`Page ${page}`, `<ul class="results">${cards}</ul>${nav}`);
+}
+
+// Türk lirası fiyatlı kartlar.
+export function tryPrices() {
+  const cards = Array.from({ length: 3 }, (_, i) => `<div class="ilan"><a href="/ilan/${900 + i}"><img src="/t/${i}.jpg" width="120"><h2>2022 Toyota Corolla ${i}</h2></a><strong>₺${(1250000 + i * 1000).toLocaleString('tr-TR')}</strong><span>${30 + i}.000 km</span></div>`).join('');
+  return layout('TRY', `<main>${cards}</main>`);
+}
+
+// Sunucu yalnızca alakasız "önerilen araçları" gönderir; asıl sonuçlar JavaScript ile gelir.
+export function ssrRecommended() {
+  const rec = Array.from({ length: 6 }, (_, i) => `<div class="rec"><a href="/rec/${i}"><img src="/r/${i}.jpg" width="90"><h5>2020 Mazda CX-5 ${i}</h5></a><span>US$${12000 + i}</span></div>`).join('');
+  const script = `setTimeout(() => {
+    const box = document.createElement('section');
+    for (let i = 0; i < 7; i++) {
+      const d = document.createElement('div');
+      d.className = 'hit';
+      d.innerHTML = '<a href="/hit/' + (40 + i) + '"><img src="/h/' + i + '.jpg" width="150"><h3>2021 TOYOTA PRIUS S ' + i + '</h3></a><p>US$ ' + (10000 + i * 10) + '</p><p>' + (30 + i) + ',000 km</p>';
+      box.appendChild(d);
+    }
+    document.querySelector('main').appendChild(box);
+  }, 800);`;
+  return layout('SSR rec', `<main><aside class="recommended">${rec}</aside></main><script>${script}</script>`);
+}
+
+// Liste ve detay aynı adres: /same?make=… ve /same?id=…
+export function samePath() {
+  const cards = Array.from({ length: 4 }, (_, i) => `<li class="row"><a href="/same?sort=price">Sort</a><a href="/same?id=${500 + i}&from=list"><img src="/s/${i}.jpg" width="120">2019 Toyota Aqua ${i}</a><em>US$ ${6000 + i}</em> <em>${70 + i},000 km</em></li>`).join('');
+  return layout('Same path', `<ul class="list">${cards}</ul>`);
+}
+
 export const ROUTES = {
   '/jp-grid': jpGrid,
   '/uk-cards': ukCards,
@@ -112,6 +187,14 @@ export const ROUTES = {
   '/late': lateRender,
   '/blocked': blocked,
   '/empty': empty,
+  '/dupes': dupes,
+  '/ask-price': askPrice,
+  '/paged/1': () => paged(1),
+  '/paged/2': () => paged(2),
+  '/paged/3': () => paged(3),
+  '/try': tryPrices,
+  '/ssr-recommended': ssrRecommended,
+  '/same': samePath,
 };
 
 export function startServer() {
