@@ -1,0 +1,21 @@
+:root {
+  --bg: #ffffff; --text: #1c1f24; --muted: #5f6672; --border: #dde1e6;
+  --accent: #c8102e; --accent-text: #ffffff; --chip: #eef0f3;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e2126; --text: #e8eaed; --muted: #9aa1ac; --border: #30343b;
+    --accent: #ff5a6e; --accent-text: #15171b; --chip: #2a2e35;
+    color-scheme: dark;
+  }
+}
+body { margin: 0; padding: 14px; width: 300px; background: var(--bg); color: var(--text); font: 13px/1.45 system-ui, sans-serif; display: flex; flex-direction: column; gap: 10px; }
+h1 { font-size: 15px; margin: 0; display: flex; align-items: center; gap: 8px; }
+h1 img { width: 20px; height: 20px; }
+button { font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--chip); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: 0.6; }
+.muted { color: var(--muted); margin: 0; }
+.ok { color: #1e7b43; margin: 0; }
+.err { color: #b3261e; margin: 0; }
