@@ -91,12 +91,16 @@ async function scrapeByFetch(url, opts) {
 
 /**
  * jobs: [{ site, url }]
- * options: { mode: auto|background|visible, concurrency, settleMs, timeoutMs, maxPages, onUpdate }
+ * options: { mode: auto|background|visible, concurrency, settleMs, timeoutMs, maxPages, perSite, onUpdate }
+ *   perSite : bu turda siteden toplanacak ilan sayısı; sayfalar bu sayıya ulaşana kadar sırayla gezilir
+ *   maxPages: bu turda site başına en fazla sayfa (güvenlik sınırı)
+ * Bitişte onUpdate'e { next } gelir: sitenin henüz açılmamış sonraki sayfası (yoksa null).
+ * "Daha fazla" için aynı fonksiyon jobs[i].url = next ile tekrar çağrılır.
  * onUpdate(siteId, { state, count?, message?, url, items?, diag? })
  *   state: queued | loading | done | empty | blocked | error | cancelled
  * Dönen nesnenin cancel() metodu aramayı durdurur.
  */
-export function runSearch(jobs, { mode = 'auto', concurrency = 3, settleMs = 2500, timeoutMs = 45000, maxPages = 2, query = null, onUpdate }) {
+export function runSearch(jobs, { mode = 'auto', concurrency = 3, settleMs = 2500, timeoutMs = 45000, maxPages = 5, perSite = 50, query = null, onUpdate }) {
   let cancelled = false;
   const abort = new AbortController();
   const openTabs = new Set();
@@ -221,13 +225,18 @@ export function runSearch(jobs, { mode = 'auto', concurrency = 3, settleMs = 250
         const before = items.length;
         items = dedupeListings([...items, ...found]);
         if (items.length) onUpdate(site.id, { state: 'loading', url, count: items.length, items, diag });
-        // Yeni ilan gelmeyen sayfadan sonra devam etme.
-        if (page > 1 && items.length === before) break;
         pageUrl = raw.next && !seenPages.has(raw.next) ? raw.next : null;
+        // Yeni ilan gelmeyen sayfa: sitenin sonu.
+        if (page > 1 && items.length === before) {
+          pageUrl = null;
+          break;
+        }
+        // Bu tur için istenen sayıda (aranan araçla eşleşen) ilan toplandıysa dur; kalan sayfalar "daha fazla"da.
+        if (items.filter((l) => matchesQuery(l, query)).length >= perSite) break;
       }
       if (cancelled) return;
       if (items.length) {
-        onUpdate(site.id, { state: 'done', count: items.length, url, items, diag, pages: diag.pages.length });
+        onUpdate(site.id, { state: 'done', count: items.length, url, items, diag, pages: diag.pages.length, next: pageUrl });
       } else if (lastRaw?.blocked) {
         onUpdate(site.id, {
           state: 'blocked',

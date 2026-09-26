@@ -2,7 +2,7 @@
 
 import { dedupeListings, listingKey } from './normalize.js';
 
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 
 export const DEFAULT_SETTINGS = {
   displayCurrency: 'TRY',
@@ -17,7 +17,7 @@ export const DEFAULT_SETTINGS = {
   },
   postcode: '',
   contact: { name: '', email: '', phone: '' },
-  runner: { mode: 'auto', concurrency: 3, settleMs: 2500, timeoutMs: 45000, maxPages: 2 },
+  runner: { mode: 'auto', concurrency: 3, settleMs: 2500, timeoutMs: 45000, perSite: 50, maxPages: 5, pageSize: 50 },
   onlyMatching: true,
   siteOverrides: {},
 };
@@ -38,6 +38,12 @@ export async function getSettings() {
     // 1. sürümde varsayılan "arka plan sekmesi" idi; yeni varsayılan önce hızlı indirme.
     if (s.runner.mode === 'background') s.runner.mode = 'auto';
     s.runner.maxPages ??= 2;
+  }
+  if ((s.version || 1) < 3) {
+    // 3. sürüm: siteden istenen sayıda ilan (varsayılan 50) toplanana kadar sayfalar gezilir.
+    s.runner.perSite ??= 50;
+    s.runner.pageSize ??= 50;
+    if (!s.runner.maxPages || s.runner.maxPages < 5) s.runner.maxPages = 5;
   }
   s.version = SETTINGS_VERSION;
   return s;

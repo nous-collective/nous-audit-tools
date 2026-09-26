@@ -54,7 +54,7 @@ before(async () => {
   await setup.evaluate(
     (s) => chrome.storage.local.set({ settings: s }),
     {
-      version: 2,
+      version: 3,
       displayCurrency: 'USD',
       rates: { rates: { USD: 1, TRY: 40, GBP: 0.8, EUR: 0.9, JPY: 150 }, updatedAt: new Date().toISOString(), source: 'manuel', manual: true },
       costs: { shippingJP: { amount: 1500, currency: 'USD' }, shippingUK: { amount: 800, currency: 'GBP' }, insurancePct: 1, taxPct: 50, fixedFees: { amount: '', currency: 'TRY' } },
@@ -76,7 +76,9 @@ after(async () => {
   if (extDir) rmSync(extDir, { recursive: true, force: true });
 });
 
-const cards = () => dashboard.locator('#results .card').count();
+// Filtrelerden geçen toplam ilan sayısı (sayfalamadan bağımsız; sayaç "53 / 76 ilan").
+const cards = async () => Number(((await dashboard.textContent('#result-count')) || '0').match(/^\d+/)?.[0] || 0);
+const cardsOnPage = () => dashboard.locator('#results .card').count();
 
 test('panelden tüm sitelerde arama', async () => {
   const p = dashboard;
@@ -100,7 +102,7 @@ test('panelden tüm sitelerde arama', async () => {
   assert.equal(st('CardealPage'), 'done');
   assert.equal(st('PicknBuy24'), 'done', 'JavaScript ile çizilen sayfa sekmede okunur');
   assert.equal(st('Gumtree'), 'done');
-  assert.match(byState.Gumtree[1], /8 ilan · 2 sayfa/);
+  assert.match(byState.Gumtree[1], /8 ilan · 2 sayfa · devamı var/);
   assert.equal(st('Cazoo (eski Motors.co.uk)'), 'done');
   assert.equal(st('CarGurus UK'), 'manual', 'otomatik aranamayan siteler de listelenir');
   assert.equal(st('BCA (bayi mezatı)'), 'manual');
@@ -216,6 +218,32 @@ test('eklenti simgesinden sayfa toplama kopya üretmez', async () => {
   await dashboard.waitForFunction(() => / \/ 80 ilan/.test(document.querySelector('#result-count').textContent));
   await popup.close();
   await page.close();
+});
+
+test('sayfa sayfa gezinme (1, 2 …), artan fiyat, son sayfada sitelerden devamı', async () => {
+  const p = dashboard;
+  await p.selectOption('#sort', 'price-asc');
+  // 53 eşleşen ilan, sayfa başına 50 → 2 sayfa. Gumtree'nin 3. sayfası henüz açılmadı → "devamı var".
+  assert.equal(await cardsOnPage(), 50);
+  const pagerText = await p.textContent('#pager');
+  assert.match(pagerText, /Sayfa 1 \/ 2 · 53 ilan · 1 sitede daha fazla ilan var/);
+  const usd = async () =>
+    p.$$eval('#results .card .price', (els) =>
+      els.map((e) => {
+        // Görüntüleme para birimindeki fiyat: "≈ $…" satırı, yoksa ilanın kendi fiyatı (USD).
+        const conv = [...e.querySelectorAll('small')].find((x) => x.textContent.startsWith('≈'))?.textContent || e.firstChild.textContent;
+        return Number(conv.replace(/[^\d]/g, ''));
+      }),
+    );
+  const first = await usd();
+  assert.deepEqual(first, [...first].sort((a, b) => a - b), 'fiyat artan');
+  // 2. (son) sayfaya geç: sitelerden sonraki sayfalar kendiliğinden istenir.
+  await p.click('#pager .pager-buttons button:text-is("2")');
+  assert.equal(await cardsOnPage(), 3);
+  await p.waitForFunction(() => /Tüm sitelerdeki ilanlar gösterildi/.test(document.querySelector('#pager').textContent), null, { timeout: 60000 });
+  const last = await usd();
+  assert.ok(last[0] >= first.at(-1), 'ikinci sayfa ilkinden pahalı');
+  await p.click('#pager .pager-buttons button:text-is("1")');
 });
 
 test('siteler ve ayarlar sekmeleri', async () => {

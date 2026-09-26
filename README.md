@@ -15,7 +15,13 @@ Japonya ve İngiltere'deki ikinci el araç sitelerini tek panelde toplar. İlanl
 - **Arama:** Marka ve model girip *Tüm sitelerde ara*'ya bastığında eklenti her sitede arar ve ilanları panelde birleştirir.
   - Önce sayfayı pencere açmadan hızlıca indirir. Aranan marka/modelle eşleşen yeterli ilan çıkmazsa sayfayı küçültülmüş bir pencerede, gerçek bir sekmede açar. Böylece JavaScript ile çizilen siteler de okunur.
   - Siteye giriş yaptıysan senin oturumunla açılır.
-  - Varsayılan olarak her sitede 2 sayfa gezilir (*Ayarlar → Site başına en fazla sayfa*).
+  - Her siteden önce 50 ilan toplanır; bunun için sitenin sayfaları sırayla gezilir. Sayıyı arama formundaki *Siteden ilan* alanından ya da *Ayarlar*'dan değiştirebilirsin.
+- **Sayfa sayfa gezinme:** Tüm sitelerin ilanları tek listede, en ucuzdan pahalıya sıralanır. Her sayfada 50 ilan var (*Ayarlar → Sayfa başına gösterilecek ilan*).
+  - Beğenmediğin sayfayı altındaki **1 2 3 … Sonraki ›** tuşlarıyla geçersin.
+  - Son sayfaya gelince eklenti, sonraki sayfası olan sitelerden yeni ilanları kendiliğinden getirir. Durum çubuğunda bu siteler *devamı var* diye işaretli.
+  - Hiçbir sitede sayfa kalmayınca listenin altında *Tüm sitelerdeki ilanlar gösterildi* yazar.
+  - Yeni gelen ilanlar da fiyat sırasına girer. Bu yüzden daha ucuz bir ilan önceki bir sayfaya yerleşebilir.
+  - Yol vergisi ("£20 a yr road tax"), posta ve kargo tutarları fiyat sayılmaz. Mezat sitelerinde (Copart) gösterilen tutar güncel tekliftir ve kartta öyle yazar.
 - **Akıllı sorgu:** Marka boş bırakılırsa modelden bulunur: "prius" → Toyota Prius, "chr" → Toyota C-HR. Marka alanına "toyota prius" yazılırsa marka ve model ayrılır. Model girilmezse siteler yalnızca markayla aranır, atlanmaz.
 - **Kopya ayıklama:** Aynı ilan birden fazla kez görünmez. Birleştirilen durumlar:
   - aynı ilana giden farklı bağlantılar (fotoğrafta `?refkey=…`, başlıkta parametresiz; `www`/`sp`/`m` alt alan adları)

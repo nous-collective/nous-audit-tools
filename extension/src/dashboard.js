@@ -44,7 +44,8 @@ const DEFAULT_FILTERS = {
   text: '', country: 'all', yearMin: '', yearMax: '', priceMin: '', priceMax: '', kmMax: '',
   fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false, onlyMatching: true,
 };
-const PAGE = 120;
+// Tüm sitelerin ilanları tek listede, sayfa sayfa (1, 2, 3…) gösterilir.
+const DEFAULT_PAGE_SIZE = 50;
 
 const state = {
   settings: null,
@@ -53,7 +54,9 @@ const state = {
   favorites: {},
   statuses: new Map(),
   run: null,
-  shown: PAGE,
+  page: 1,
+  cursors: {}, // site kimliği -> sitenin henüz açılmamış sonraki sayfası (null: bitti)
+  perSite: 50,
   filters: { ...DEFAULT_FILTERS },
   excludedSites: new Set(),
   sort: 'price-asc',
@@ -196,7 +199,10 @@ async function startSearch(e) {
 
   clearTimeout(persistResults.timer);
   state.results = [];
-  state.shown = PAGE;
+  state.page = 1;
+  state.cursors = {};
+  state.perSite = Number(form.perSite) || Number(state.settings.runner.perSite) || 50;
+  saveCursors();
   await saveResults([]);
   Object.assign(state.filters, {
     yearMin: form.yearFrom || '',
@@ -210,29 +216,7 @@ async function startSearch(e) {
   syncFilterInputs();
   renderResults();
 
-  $('#search-btn').disabled = true;
-  $('#search-btn').textContent = 'Aranıyor…';
-  $('#stop-btn').hidden = false;
-
-  const r = state.settings.runner;
-  state.run = runSearch(jobs, {
-    mode: r.mode,
-    concurrency: Number(r.concurrency) || 3,
-    settleMs: num(r.settleMs) ?? 2500,
-    timeoutMs: Number(r.timeoutMs) || 45000,
-    maxPages: Number(r.maxPages) || 1,
-    query: state.query,
-    onUpdate,
-  });
-  try {
-    await state.run.promise;
-  } catch (err) {
-    toast(`Arama hatası: ${err.message}`, 6000);
-  }
-  state.run = null;
-  $('#search-btn').disabled = false;
-  $('#search-btn').textContent = 'Tüm sitelerde ara';
-  $('#stop-btn').hidden = true;
+  await runJobs(jobs);
   const ok = [...state.statuses.values()].filter((s) => s.state === 'done').length;
   const matching = state.query ? state.results.filter((l) => matchesQuery(l, state.query)).length : state.results.length;
   toast(
@@ -243,9 +227,64 @@ async function startSearch(e) {
   );
 }
 
+function setBusy(busy) {
+  $('#search-btn').disabled = busy;
+  $('#search-btn').textContent = busy ? 'Aranıyor…' : 'Tüm sitelerde ara';
+  $('#stop-btn').hidden = !busy;
+}
+
+async function runJobs(jobs) {
+  const r = state.settings.runner;
+  setBusy(true);
+  state.run = runSearch(jobs, {
+    mode: r.mode,
+    concurrency: Number(r.concurrency) || 3,
+    settleMs: num(r.settleMs) ?? 2500,
+    timeoutMs: Number(r.timeoutMs) || 45000,
+    maxPages: Number(r.maxPages) || 5,
+    perSite: state.perSite,
+    query: state.query,
+    onUpdate,
+  });
+  renderPager();
+  try {
+    await state.run.promise;
+  } catch (err) {
+    toast(`Arama hatası: ${err.message}`, 6000);
+  }
+  state.run = null;
+  setBusy(false);
+  renderResults();
+}
+
+// Sitelerin sonraki sayfa adresleri saklanır: panel kapanıp açılınca da "devamı" getirilebilir.
+function saveCursors() {
+  chrome.storage.local.set({ cursors: state.cursors, perSite: state.perSite });
+}
+
+const sitesWithMore = () => Object.entries(state.cursors).filter(([, next]) => next).map(([id]) => id);
+
+// Sonraki sayfası olan her siteden bir tur daha ilan getirir.
+async function loadMore() {
+  if (state.run) return;
+  const ids = sitesWithMore();
+  if (!ids.length) return;
+  const jobs = ids.map((id) => ({ site: state.sites.find((s) => s.id === id), url: state.cursors[id] })).filter((j) => j.site);
+  for (const j of jobs) state.cursors[j.site.id] = null;
+  saveCursors();
+  const before = state.results.length;
+  await runJobs(jobs);
+  const added = state.results.length - before;
+  toast(added ? `${added} yeni ilan eklendi.` : 'Sitelerden yeni ilan gelmedi.');
+}
+
 function onUpdate(siteId, st) {
-  const { items, diag, ...rest } = st;
+  const { items, diag, next, ...rest } = st;
   state.statuses.set(siteId, rest);
+  if (['done', 'empty', 'blocked', 'error'].includes(st.state)) {
+    state.cursors[siteId] = next || null;
+    saveCursors();
+  }
   if (diag) state.diagnostics[siteId] = diag;
   if (items?.length) {
     state.results = dedupeListings([...state.results, ...items]);
@@ -266,8 +305,10 @@ function stopSearch() {
 
 function statusChip(id, st) {
   const site = state.sites.find((s) => s.id === id);
-  let label = st.state === 'done' ? `${st.count} ${STATUS_TEXT.done}` : STATUS_TEXT[st.state];
+  const total = state.results.filter((l) => l.siteId === id).length;
+  let label = st.state === 'done' ? `${total || st.count} ${STATUS_TEXT.done}` : STATUS_TEXT[st.state];
   if (st.state === 'done' && st.pages > 1) label += ` · ${st.pages} sayfa`;
+  if (st.state === 'done' && state.cursors[id]) label += ' · devamı var';
   if (st.state === 'loading' && st.count) label = `${st.count} ilan, devam ediyor…`;
   return h(
     'span',
@@ -373,7 +414,7 @@ function renderSiteFilter() {
           onchange: (e) => {
             if (e.target.checked) state.excludedSites.delete(id);
             else state.excludedSites.add(id);
-            state.shown = PAGE;
+            state.page = 1;
             renderResults();
           },
         }),
@@ -414,6 +455,7 @@ function priceBlock(l) {
     formatMoney(l.price, l.currency),
     l.currency !== cur() && conv != null ? h('small', null, `≈ ${formatMoney(conv, cur())}`) : null,
     l.priceTotal != null ? h('small', null, `Toplam/CIF: ${formatMoney(l.priceTotal, l.priceTotalCurrency)}`) : null,
+    l.auction ? h('small', null, 'Mezat: güncel teklif, son fiyat değil') : null,
   );
 }
 
@@ -489,9 +531,49 @@ function renderResults() {
     ? `${list.length} / ${state.results.length} ilan${unmatched ? ` · ${unmatched} tanesi aranan marka/modelle eşleşmediği için gizli` : ''}`
     : '';
   $('#empty-state').hidden = state.results.length > 0;
-  const grid = $('#results');
-  grid.replaceChildren(...list.slice(0, state.shown).map(card));
-  $('#more-btn').hidden = list.length <= state.shown;
+  const size = pageSize();
+  const pages = Math.max(1, Math.ceil(list.length / size));
+  state.page = Math.min(Math.max(1, state.page), pages);
+  $('#results').replaceChildren(...list.slice((state.page - 1) * size, state.page * size).map(card));
+  renderPager(pages, list.length);
+}
+
+const pageSize = () => Number(state.settings.runner.pageSize) || DEFAULT_PAGE_SIZE;
+
+// 1 2 3 … sayfa tuşları (sonuçların üstünde ve altında).
+function renderPager(pages, count) {
+  if (pages === undefined) return renderResults();
+  const p = state.page;
+  const nums = [...new Set([1, p - 2, p - 1, p, p + 1, p + 2, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
+  const more = sitesWithMore().length;
+  let info;
+  if (state.run) info = 'Sitelerden ilanlar yükleniyor…';
+  else if (more) info = `${more} sitede daha fazla ilan var: son sayfaya gelince otomatik getirilir.`;
+  else if (count) info = 'Tüm sitelerdeki ilanlar gösterildi.';
+  const build = () => {
+    const nav = [];
+    if (pages > 1 || more) {
+      nav.push(h('button', { type: 'button', disabled: p <= 1, onclick: () => goPage(p - 1) }, '‹ Önceki'));
+      let last = 0;
+      for (const n of nums) {
+        if (n - last > 1) nav.push(h('span', { class: 'gap' }, '…'));
+        nav.push(h('button', { type: 'button', class: n === p ? 'current' : '', 'aria-current': n === p ? 'page' : null, onclick: () => goPage(n) }, String(n)));
+        last = n;
+      }
+      nav.push(h('button', { type: 'button', disabled: p >= pages && !more, onclick: () => (p >= pages ? loadMore() : goPage(p + 1)) }, p >= pages && more ? 'Daha fazla getir ›' : 'Sonraki ›'));
+    }
+    return [h('div', { class: 'pager-buttons' }, nav), count ? h('div', { class: 'pager-info muted' }, `Sayfa ${p} / ${pages} · ${count} ilan${info ? ` · ${info}` : ''}`) : null];
+  };
+  $('#pager').replaceChildren(...build());
+  $('#pager-top').replaceChildren(...build());
+}
+
+function goPage(n) {
+  state.page = n;
+  renderResults();
+  $('#pager-top').scrollIntoView({ block: 'start' });
+  const pages = Math.max(1, Math.ceil(filteredResults().length / pageSize()));
+  if (state.page >= pages && sitesWithMore().length) loadMore();
 }
 
 // ---------- takip listesi ----------
@@ -810,7 +892,7 @@ function renderSettings() {
 async function saveSettingsForm(e) {
   e.preventDefault();
   const form = $('#settings-form');
-  const numeric = new Set(['kktc.maxAgeYears', 'kktc.shippingMonths', 'runner.concurrency', 'runner.settleMs', 'runner.timeoutMs', 'runner.maxPages']);
+  const numeric = new Set(['kktc.maxAgeYears', 'kktc.shippingMonths', 'runner.concurrency', 'runner.settleMs', 'runner.timeoutMs', 'runner.maxPages', 'runner.perSite', 'runner.pageSize']);
   const newRates = { USD: 1 };
   let ratesChanged = false;
   for (const el of form.elements) {
@@ -917,8 +999,10 @@ async function init() {
   state.favorites = await getFavorites();
 
   $('#makes').replaceChildren(...MAKES.map((m) => h('option', { value: m })));
-  const { lastSearch, lastQuery } = await chrome.storage.local.get(['lastSearch', 'lastQuery']);
+  const { lastSearch, lastQuery, cursors, perSite } = await chrome.storage.local.get(['lastSearch', 'lastQuery', 'cursors', 'perSite']);
   state.query = lastQuery || null;
+  state.cursors = cursors || {};
+  state.perSite = perSite || Number(state.settings.runner.perSite) || 50;
   if (lastSearch) {
     for (const [k, v] of Object.entries(lastSearch)) {
       const el = $('#search-form').elements[k];
@@ -938,7 +1022,7 @@ async function init() {
     const k = e.target.dataset.f;
     if (!k) return;
     state.filters[k] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    state.shown = PAGE;
+    state.page = 1;
     renderResults();
   });
   $('#reset-filters').addEventListener('click', () => {
@@ -947,14 +1031,13 @@ async function init() {
     syncFilterInputs();
     renderResults();
   });
-  $('#more-btn').addEventListener('click', () => {
-    state.shown += PAGE;
-    renderResults();
-  });
   $('#clear-results').addEventListener('click', async () => {
     if (!confirm('Tüm arama sonuçları silinsin mi? (Takip listesi korunur.)')) return;
     clearTimeout(persistResults.timer);
     state.results = [];
+    state.cursors = {};
+    saveCursors();
+    state.page = 1;
     state.statuses.clear();
     await saveResults([]);
     renderStatus();

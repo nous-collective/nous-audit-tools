@@ -75,6 +75,10 @@ export function pickPrices(priceTexts = []) {
     if (/^\s*(\/\s?mo|\/\s?month|per month|p\/m|pm\b|a month|monthly|pcm)/.test(a) || /\b(from|deposit|monthly|per month)\s*$/.test(l)) {
       continue; // taksit / peşinat
     }
+    // Yol vergisi ("£20 a yr road tax"), posta/kargo ("+£45 postage") araç fiyatı değildir.
+    if (/^\s*(a\s?yr|\/\s?yr|a year|per year|per annum|p\/?a\b|pa\b|road tax|tax\b|ved\b|postage|delivery|shipping|collection)/.test(a) || /(road tax|tax|ved|\+|postage|delivery|shipping)\s*:?\s*$/.test(l)) {
+      continue;
+    }
     if (/(total|cif|c&f|c\s?and\s?f|toplam)/.test(l)) {
       total ??= p;
     } else if (/\b(was|previous|old price|rrp|save|saving|you save|discount|off)\b[^\d]*$/.test(l)) {
@@ -358,6 +362,7 @@ export function toListing(raw, site, pageUrl) {
     siteId: site?.id || `host:${host}`,
     siteName: site?.name || host,
     country: site?.country || null,
+    auction: site?.kind === 'auction' || undefined,
     title,
     image: raw.image && /^https?:/i.test(raw.image) ? raw.image : null,
     price: price?.amount ?? null,

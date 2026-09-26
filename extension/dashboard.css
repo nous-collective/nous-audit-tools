@@ -152,7 +152,7 @@ label.inline select { width: auto; }
 .btn-a { display: inline-block; background: var(--accent); color: var(--accent-text); border-radius: 6px; padding: 6px 12px; font-weight: 600; }
 .fav-on { background: var(--accent-soft); border-color: var(--accent); }
 
-.more-wrap { text-align: center; margin-top: 16px; }
+
 .empty { text-align: center; color: var(--muted); padding: 40px 20px; max-width: 620px; margin: 0 auto; }
 
 .fav-list { display: flex; flex-direction: column; gap: 10px; }
@@ -207,3 +207,11 @@ label.inline select { width: auto; }
 .test-table .sample { color: var(--muted); font-size: 12px; max-width: 360px; }
 .test-summary { margin: 8px 0; font-weight: 600; }
 @media (max-width: 900px) { .test-table .sample, .test-table .hide-sm { display: none; } }
+
+.pager { display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 12px 0; }
+.pager:empty { display: none; }
+.pager-buttons { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.pager-buttons button { min-width: 38px; }
+.pager-buttons button.current { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
+.pager-buttons .gap { padding: 6px 4px; color: var(--muted); }
+.pager-info { font-size: 13px; text-align: center; }

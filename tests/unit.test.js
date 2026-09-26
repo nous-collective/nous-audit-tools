@@ -424,3 +424,13 @@ test('canlı sitelerden çıkan düzeltmeler', () => {
   assert.equal(d[0].km, 118000);
   assert.ok(!d[0].url.includes('keyword='), 'arama bağlantısı yerine ilan sayfası');
 });
+
+test('yol vergisi, posta ve kargo fiyat sayılmaz (eBay/Gumtree canlı)', () => {
+  const t = (text) => pickPrices([...text.matchAll(new RegExp(PRICE_PATTERN, 'gi'))].map((m) => ({ text: m[0], label: text.slice(Math.max(0, m.index - 30), m.index), after: text.slice(m.index + m[0].length, m.index + m[0].length + 20) }))).price?.amount;
+  assert.equal(t('UK CAR £20 a yr road tax 66 reg Toyota Prius 1.8 £8,995'), 8995);
+  assert.equal(t('Toyota, PRIUS, 2009, Petrol/Hybrid, Automatic, £20 tax, £2,450'), 2450);
+  assert.equal(t('2019 Toyota Prius £12,500 +£45.00 postage'), 12500);
+  assert.equal(t('Road tax: £0 Price £4,995'), 4995);
+  const c = toListing({ url: 'https://www.copart.co.uk/lot/1/x', title: '2011 Toyota Prius', priceTexts: [{ text: '£30' }], text: '' }, { id: 'copart', country: 'UK', kind: 'auction' });
+  assert.equal(c.auction, true);
+});

@@ -43,6 +43,9 @@
           <label class="short">Maks. km
             <input name="kmMax" type="number" min="0" step="any" />
           </label>
+          <label class="short">Siteden ilan
+            <input name="perSite" type="number" min="1" max="500" step="1" placeholder="50" />
+          </label>
           <label class="short">Ülke
             <select name="country">
               <option value="all">Tümü</option>
@@ -129,8 +132,9 @@
               <button type="button" id="export-diag" title="Bir site ilan getirmiyorsa bu dosyayı paylaş: her sitenin adresi, yöntemi ve sayfada bulunan yapı örnekleri">Tanı raporu</button>
               <button type="button" id="clear-results" title="Tüm arama sonuçlarını sil (takip listesi korunur)">Temizle</button>
             </div>
+            <nav id="pager-top" class="pager" aria-label="Sayfalar"></nav>
             <div id="results" class="grid"></div>
-            <div class="more-wrap"><button type="button" id="more-btn" hidden>Daha fazla göster</button></div>
+            <nav id="pager" class="pager" aria-label="Sayfalar"></nav>
             <div id="empty-state" class="empty">
               <p><strong>Henüz sonuç yok.</strong></p>
               <p>Yukarıdan marka/model girip <em>Tüm sitelerde ara</em>'ya bas. Eklenti her siteyi önce arka planda indirir, gerekirse küçültülmüş bir pencerede açar; ilanları toplar, aynı ilanın kopyalarını ayıklar ve burada birleştirir. Marka boş bırakılırsa modelden bulunur (ör. "prius" → Toyota).</p>
@@ -241,8 +245,14 @@
                 <option value="visible">Her zaman sekmede, görünür pencerede (robot doğrulaması çıkan siteler için)</option>
               </select>
             </label>
-            <label>Site başına en fazla sayfa
-              <input name="runner.maxPages" type="number" min="1" max="10" step="1" />
+            <label>Sayfa başına gösterilecek ilan
+              <input name="runner.pageSize" type="number" min="10" max="500" step="1" />
+            </label>
+            <label>Her seferde siteden getirilecek ilan sayısı
+              <input name="runner.perSite" type="number" min="1" max="500" step="1" />
+            </label>
+            <label>Site başına en fazla sayfa (sınır)
+              <input name="runner.maxPages" type="number" min="1" max="20" step="1" />
             </label>
             <label>Aynı anda aranacak site sayısı
               <input name="runner.concurrency" type="number" min="1" max="6" />
