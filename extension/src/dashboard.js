@@ -6,6 +6,7 @@ import { matchesQuery, normalizeQuery } from './query.js';
 import { AGE_LABEL, ageStatus, inquiryMessage, landedCost } from './kktc.js';
 import { getFavorites, getResults, getSettings, saveFavorites, saveResults, saveSettings } from './storage.js';
 import { runSearch } from './runner.js';
+import { TEST_QUERY, evaluateSite } from './sitetest.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -659,6 +660,127 @@ function renderSites() {
   }
 }
 
+// ---------- site testi ----------
+let siteTest = null; // { startedAt, rows: Map(siteId -> {site, status, items, diag, metrics}) }
+
+async function runSiteTest() {
+  if (state.run || siteTest?.running) return toast('Önce devam eden aramanın bitmesini bekle.');
+  const sites = state.sites.filter((s) => s.enabled && s.templates.length);
+  const vars = { ...TEST_QUERY, keyword: '', currency: cur(), postcode: state.settings.postcode };
+  const jobs = [];
+  siteTest = { running: true, startedAt: new Date().toISOString(), rows: new Map() };
+  for (const site of sites) {
+    const url = buildFirstUrl(site.templates, searchVars(vars, site, convert));
+    siteTest.rows.set(site.id, { site, status: url ? { state: 'queued' } : { state: 'skipped', message: 'Şablon URL üretemedi' }, items: [] });
+    if (url) jobs.push({ site, url });
+  }
+  $('#run-site-test').disabled = true;
+  $('#download-site-test').disabled = true;
+  renderSiteTest();
+  const r = state.settings.runner;
+  const run = runSearch(jobs, {
+    mode: r.mode,
+    concurrency: Number(r.concurrency) || 3,
+    settleMs: num(r.settleMs) ?? 2500,
+    timeoutMs: Number(r.timeoutMs) || 45000,
+    maxPages: 1,
+    query: TEST_QUERY,
+    onUpdate: (id, st) => {
+      const row = siteTest.rows.get(id);
+      const { items, diag, ...status } = st;
+      row.status = status;
+      if (items) row.items = items;
+      if (diag) row.diag = diag;
+      renderSiteTest();
+    },
+  });
+  try {
+    await run.promise;
+  } finally {
+    siteTest.running = false;
+    siteTest.finishedAt = new Date().toISOString();
+    $('#run-site-test').disabled = false;
+    $('#download-site-test').disabled = false;
+    renderSiteTest();
+  }
+}
+
+function renderSiteTest() {
+  const box = $('#site-test-result');
+  if (!siteTest) return box.replaceChildren();
+  const verdictBadge = { ok: ['ok', 'Çalışıyor'], warn: ['risky', 'Sorunlu'], fail: ['no', 'Çalışmıyor'] };
+  let ok = 0;
+  let done = 0;
+  const rows = [...siteTest.rows.values()].map((row) => {
+    const running = ['queued', 'loading'].includes(row.status.state);
+    row.metrics = running ? null : evaluateSite(row.items, row.status);
+    if (row.metrics) done++;
+    if (row.metrics?.verdict === 'ok') ok++;
+    const m = row.metrics;
+    const [cls, text] = m ? verdictBadge[m.verdict] : ['', row.status.state === 'queued' ? 'Sırada' : 'Test ediliyor…'];
+    const sample = m?.sample;
+    return h(
+      'tr',
+      null,
+      h('td', null, `${COUNTRY_FLAG[row.site.country]} `, h('a', { href: row.status.url || row.site.home, target: '_blank', rel: 'noopener noreferrer' }, row.site.name)),
+      h('td', null, h('span', { class: `badge ${cls}` }, text), m?.problems.length ? h('div', { class: 'sample' }, m.problems.join(' · ')) : null),
+      h('td', { class: 'num' }, m ? `${m.count} / ${m.matching}` : ''),
+      h('td', { class: 'num hide-sm' }, m && m.count ? `${m.pricePct}% · ${m.yearPct}% · ${m.kmPct}%` : ''),
+      h('td', { class: 'num hide-sm' }, m ? String(m.duplicates) : ''),
+      h('td', { class: 'hide-sm' }, row.diag?.pages?.map((p) => ({ fetch: 'indirme', tab: 'sekme' })[p.method]).filter(Boolean).join(', ') || ''),
+      h(
+        'td',
+        { class: 'sample' },
+        sample ? `${sample.title} — ${sample.price != null ? formatMoney(sample.price, sample.currency) : 'fiyat ?'} · ${sample.year || 'yıl ?'} · ${sample.km != null ? `${fmtInt(sample.km)} km` : 'km ?'}` : '',
+      ),
+    );
+  });
+  box.replaceChildren(
+    h('div', { class: 'test-summary' }, siteTest.running ? `Test ediliyor: ${done} / ${siteTest.rows.size} site bitti` : `${siteTest.rows.size} siteden ${ok} tanesi sorunsuz çalışıyor.`),
+    h(
+      'table',
+      { class: 'test-table' },
+      h(
+        'thead',
+        null,
+        h('tr', null, h('th', null, 'Site'), h('th', null, 'Sonuç'), h('th', null, 'İlan / eşleşen'), h('th', { class: 'hide-sm' }, 'Fiyat · yıl · km okunan'), h('th', { class: 'hide-sm' }, 'Kopya'), h('th', { class: 'hide-sm' }, 'Yöntem'), h('th', null, 'Örnek ilan')),
+      ),
+      h('tbody', null, rows),
+    ),
+  );
+}
+
+function downloadSiteTest() {
+  if (!siteTest) return;
+  const report = {
+    kind: 'site-test',
+    extension: chrome.runtime.getManifest().version,
+    startedAt: siteTest.startedAt,
+    finishedAt: siteTest.finishedAt,
+    userAgent: navigator.userAgent,
+    runner: state.settings.runner,
+    query: TEST_QUERY,
+    sites: Object.fromEntries(
+      [...siteTest.rows].map(([id, row]) => [
+        id,
+        {
+          status: row.status,
+          metrics: row.metrics && { ...row.metrics, sample: row.metrics.sample && { title: row.metrics.sample.title, url: row.metrics.sample.url, price: row.metrics.sample.price, currency: row.metrics.sample.currency, year: row.metrics.sample.year, km: row.metrics.sample.km } },
+          listings: row.items.slice(0, 5).map((l) => ({ title: l.title, url: l.url, price: l.price, currency: l.currency, year: l.year, month: l.month, km: l.km })),
+          diag: row.diag,
+        },
+      ]),
+    ),
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: `kktc-arac-site-testi-${Date.now()}.json` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // ---------- ayarlar ----------
 function fillCurrencySelect(sel) {
   sel.replaceChildren(...CURRENCIES.map((c) => h('option', { value: c }, c)));
@@ -847,6 +969,8 @@ async function init() {
     );
     downloadCsv('kktc-arac-takip.csv', favs, cols);
   });
+  $('#run-site-test').addEventListener('click', runSiteTest);
+  $('#download-site-test').addEventListener('click', downloadSiteTest);
   $('#reset-sites').addEventListener('click', async () => {
     if (!confirm('Tüm site ayarları ve özel şablonlar varsayılana dönsün mü?')) return;
     state.settings.siteOverrides = {};

@@ -64,6 +64,18 @@ Enhance Auto (alan adı satılık) ve Tomisho (kaydı bulunamadı) listeden çı
 
 > Mevzuat değişebilir. Araç almadan önce KKTC Gümrük ve Rüsumat Dairesi, Motorlu Araçlar Mukayyitliği ve bir gümrük müşaviriyle teyit et.
 
+## Siteleri test etme
+
+*Siteler* sekmesindeki **Siteleri test et** düğmesi tüm otomatik sitelerde "Toyota Prius" arar. Her site için bir satırda şunları gösterir:
+
+- gelen ilan sayısı ve bunlardan aranan araçla eşleşenler
+- fiyatı, yılı ve km'si okunabilen ilanların oranı
+- kopya şüphesi
+- sayfanın nasıl okunduğu (indirme ya da sekme)
+- örnek bir ilan
+
+Her site *Çalışıyor*, *Sorunlu* ya da *Çalışmıyor* olarak işaretlenir. **Test raporunu indir** ile inen JSON dosyasını paylaşırsan sorunlu siteler doğrudan düzeltilebilir. Test, arama sonuçlarına karışmaz.
+
 ## Sorun giderme
 
 - **Bir site "ilan yok" diyor ama sitede ilan var:** Aramadan sonra **Tanı raporu**'na bas ve inen JSON dosyasını paylaş. Raporda her site için şunlar var: açılan adres, yöntem (indirme/sekme), HTTP durumu ve sayfada tanınan kart yapılarından örnekler. Kişisel ayarların (iletişim bilgileri) rapora girmez. Kendin bakmak istersen *Siteler* sekmesinde **Dene**'ye basıp açılan sayfayı kontrol et.

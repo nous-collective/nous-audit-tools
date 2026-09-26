@@ -235,6 +235,33 @@ test('siteler ve ayarlar sekmeleri', async () => {
   await p.click('.tabs button[data-tab=results]');
 });
 
+test('siteleri test et', async () => {
+  const p = dashboard;
+  await p.click('.tabs button[data-tab=sites]');
+  await p.click('#run-site-test');
+  await p.waitForFunction(() => /sorunsuz çalışıyor/.test(document.querySelector('#site-test-result .test-summary')?.textContent || ''), null, { timeout: 90000 });
+  const rows = await p.$$eval('#site-test-result tbody tr', (trs) =>
+    Object.fromEntries(trs.map((tr) => [tr.cells[0].textContent.replace(/^\S+\s/, '').trim(), tr.cells[1].querySelector('.badge').textContent])),
+  );
+  assert.equal(rows['SBT Japan'], 'Çalışıyor');
+  assert.equal(rows['CardealPage'], 'Çalışıyor', 'kopyalı sayfada kopya kalmaz');
+  assert.equal(rows['Real Motor Japan'], 'Çalışıyor');
+  assert.equal(rows['TCV (tradecarview)'], 'Çalışmıyor');
+  assert.equal(rows['cinch'], 'Çalışmıyor');
+  assert.equal(rows['PicknBuy24'], 'Sorunlu', 'yalnızca Honda ilanları: eşleşme az');
+  if (process.env.SCREENSHOT_DIR) await p.locator('.site-test').screenshot({ path: join(process.env.SCREENSHOT_DIR, 'site-test.png') });
+  const [download] = await Promise.all([p.waitForEvent('download'), p.click('#download-site-test')]);
+  const report = JSON.parse(readFileSync(await download.path(), 'utf8'));
+  assert.equal(report.kind, 'site-test');
+  assert.equal(report.sites.sbt.metrics.verdict, 'ok');
+  assert.equal(report.sites.sbt.metrics.duplicates, 0);
+  assert.equal(report.sites.cardealpage.metrics.count, 6);
+  assert.equal(report.sites.tcv.status.state, 'blocked');
+  // Test, arama sonuçlarına karışmaz.
+  await p.click('.tabs button[data-tab=results]');
+  assert.match(await p.textContent('#result-count'), / \/ 80 ilan/);
+});
+
 test('konsolda hata yok', () => {
   assert.deepEqual(errors, []);
 });

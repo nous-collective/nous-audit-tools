@@ -156,6 +156,15 @@
           <p><strong>Arama şablonları.</strong> Her site için arama URL'si şablondan üretilir. <code>{make}</code>, <code>{model}</code>, <code>{q}</code> (marka + model + kelime), <code>{yearFrom}</code>, <code>{yearTo}</code>, <code>{priceMin}</code>, <code>{priceMax}</code> (sitenin para biriminde), <code>{kmMax}</code>, <code>{milesMax}</code>, <code>{postcode}</code> kullanılabilir. Değiştiriciler: <code>|lower</code> <code>|upper</code> <code>|title</code> <code>|slug</code> <code>|under</code> <code>|plus</code> <code>|enc</code>. <code>[ … ]</code> içindeki kısım, alan boşsa atlanır. Her satıra bir şablon yazılabilir: üstteki önce denenir, gereken alan boşsa (ör. model girilmemişse) alttakine geçilir.</p>
           <p>Bir site URL yapısını değiştirirse: sitede kendi aramanı yap, adres çubuğundaki URL'yi buraya şablon olarak uyarla. Şablonu olmayan siteler otomatik aramaya katılmaz. Onlar için <em>Sitede aç</em>'ı kullanıp eklenti simgesinden sayfayı toplayabilirsin.</p>
         </div>
+        <div class="panel site-test">
+          <div class="toolbar">
+            <p><strong>Siteleri test et.</strong> Tüm otomatik sitelerde "Toyota Prius" aranır. Her site için ilan geliyor mu, fiyat/yıl/km okunuyor mu ve kopya var mı kontrol edilir. Sonuçlar arama sonuçlarına karışmaz.</p>
+            <span class="spacer"></span>
+            <button type="button" id="run-site-test" class="primary">Siteleri test et</button>
+            <button type="button" id="download-site-test" disabled>Test raporunu indir</button>
+          </div>
+          <div id="site-test-result"></div>
+        </div>
         <div class="toolbar">
           <span class="spacer"></span>
           <button type="button" id="reset-sites">Varsayılanlara dön</button>

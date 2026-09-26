@@ -368,3 +368,27 @@ test('manifest izinleri tüm siteleri kapsar', () => {
     for (const h of hosts) assert.ok(covers(h), `${s.id}: ${h} manifest'te yok`);
   }
 });
+
+test('site testi değerlendirmesi', async () => {
+  const { evaluateSite, suspectedDuplicates } = await import('../extension/src/sitetest.js');
+  const L = (i, o = {}) => ({ title: `2019 TOYOTA PRIUS S ${i}`, price: 5000 + i, currency: 'USD', year: 2019, km: 1000 * i, image: 'https://i', make: 'Toyota', ...o });
+  const good = evaluateSite([L(1), L(2), L(3), L(4)], { state: 'done' });
+  assert.equal(good.verdict, 'ok');
+  assert.equal(good.matching, 4);
+  assert.equal(good.pricePct, 100);
+
+  const dup = evaluateSite([L(1), L(1), L(2), L(3)], { state: 'done' });
+  assert.equal(dup.duplicates, 1);
+  assert.equal(dup.verdict, 'warn');
+
+  const noPrice = evaluateSite([L(1, { price: null }), L(2, { price: null }), L(3, { price: null })], { state: 'done' });
+  assert.deepEqual(noPrice.problems, ['Fiyatların çoğu okunamadı']);
+
+  const wrong = evaluateSite([L(1, { title: 'Honda Fit', make: 'Honda' }), L(2, { title: 'Honda Fit 2', make: 'Honda' }), L(3, { title: 'Mazda', make: 'Mazda' })], { state: 'done' });
+  assert.ok(wrong.problems.includes('Aranan araçla eşleşen ilan az'));
+
+  const none = evaluateSite([], { state: 'blocked', message: 'robot' });
+  assert.equal(none.verdict, 'fail');
+  assert.deepEqual(none.problems, ['robot']);
+  assert.equal(suspectedDuplicates([L(1, { price: null }), L(1, { price: null })]), 0);
+});
