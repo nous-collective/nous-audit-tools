@@ -47,7 +47,20 @@ Japonya ve İngiltere'deki ikinci el araç sitelerini tek panelde toplar. İlanl
 
 Arama URL'leri *Siteler* sekmesindeki şablonlardan üretilir. Otomatik aranan 20 sitenin marka + model arama adresleri, sitelerin arama motorlarında görünen gerçek sayfa adresleriyle karşılaştırılarak doğrulandı. Yalnızca markayla arama biçimleri Car Junction, Carwow, AutoTrader, SBT ve TCV'de doğrulandı; diğerlerinde aynı yapının kısaltmasıdır. Bir site adres yapısını değiştirirse ve sonuç gelmezse: sitede kendi aramanı yap, adres çubuğundaki URL'yi şablona uyarla.
 
-Enhance Auto (alan adı satılık) ve Tomisho (kaydı bulunamadı) listeden çıkarıldı.
+Enhance Auto (alan adı satılık) ve Tomisho (kaydı bulunamadı) listeden çıkarıldı. Motors.co.uk artık Cazoo'ya yönlendirdiği için şablon cazoo.co.uk'yi kullanıyor.
+
+### Canlı test sonucu (27 Eylül 2026, "Toyota Prius")
+
+Eklenti gerçek sitelerde, bir bulut sunucusundan test edildi.
+
+| Durum | Siteler |
+| --- | --- |
+| Çalışıyor (16) | BE FORWARD, SBT Japan, Car From Japan, TCV, Goo-net Exchange, Real Motor Japan, PicknBuy24, CardealPage, AutoTrader UK, eBay, Gumtree, PistonHeads, cinch, Carwow, Exchange & Mart, Copart |
+| İlanlar geliyor, fiyat yok | Car Junction (site fiyatı yazmıyor, "Enquiry" ile soruluyor) |
+| Bot kontrolü | Cazoo (Vercel), SAT Japan (Cloudflare). Veri merkezi IP'lerine çıkıyor; kendi tarayıcında çoğunlukla geçer. Çıkarsa *Ayarlar → Pencere → görünür pencere* seçeneğini kullan. |
+| Test edilemedi | Autorec (test sunucusundan bağlantı kurulamadı) |
+
+Testi kendin tekrarlamak için *Siteler → Siteleri test et*'e bas. Geliştirme ortamında `node tools/live-test.mjs rapor.json` da aynı testi yapar.
 
 Şablon sözdizimi:
 

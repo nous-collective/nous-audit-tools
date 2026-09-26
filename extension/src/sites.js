@@ -165,11 +165,12 @@ export const SITES = [
     kind: 'marketplace',
   },
   {
+    // Motors.co.uk artık cazoo.co.uk'ye yönlendiriyor (Eylül 2026'da canlı kontrol edildi).
     id: 'motors',
-    name: 'Motors.co.uk (Cazoo)',
+    name: 'Cazoo (eski Motors.co.uk)',
     country: 'UK',
-    home: 'https://www.motors.co.uk/',
-    templates: ['https://www.motors.co.uk/{make|slug}/[{model|slug}/]used-cars/'],
+    home: 'https://www.cazoo.co.uk/',
+    templates: ['https://www.cazoo.co.uk/cars/{make|slug}/[{model|slug}/]'],
     verified: true,
     currency: 'GBP',
     kind: 'marketplace',

@@ -101,7 +101,7 @@ test('panelden tüm sitelerde arama', async () => {
   assert.equal(st('PicknBuy24'), 'done', 'JavaScript ile çizilen sayfa sekmede okunur');
   assert.equal(st('Gumtree'), 'done');
   assert.match(byState.Gumtree[1], /8 ilan · 2 sayfa/);
-  assert.equal(st('Motors.co.uk (Cazoo)'), 'done');
+  assert.equal(st('Cazoo (eski Motors.co.uk)'), 'done');
   assert.equal(st('CarGurus UK'), 'manual', 'otomatik aranamayan siteler de listelenir');
   assert.equal(st('BCA (bayi mezatı)'), 'manual');
 
@@ -260,6 +260,24 @@ test('siteleri test et', async () => {
   // Test, arama sonuçlarına karışmaz.
   await p.click('.tabs button[data-tab=results]');
   assert.match(await p.textContent('#result-count'), / \/ 80 ilan/);
+});
+
+test('ara sayfa ("Click this link to continue") otomatik izlenir', async () => {
+  const p = dashboard;
+  await p.evaluate(async (b) => {
+    const { settings } = await chrome.storage.local.get('settings');
+    for (const k of Object.keys(settings.siteOverrides)) settings.siteOverrides[k].enabled = false;
+    settings.siteOverrides.carjunction = { enabled: true, templates: [`${b}/live-cardeal?m={make}`] };
+    await chrome.storage.local.set({ settings });
+  }, srv.base);
+  await p.reload();
+  await p.fill('input[name=make]', 'Toyota');
+  await p.fill('input[name=model]', 'Prius');
+  await p.click('#search-btn');
+  await p.waitForFunction(() => document.querySelector('#search-btn').textContent === 'Tüm sitelerde ara' && !document.querySelector('#search-btn').disabled, null, { timeout: 60000 });
+  const chip = await p.textContent('#site-status .chip.st-done');
+  assert.match(chip, /Car Junction: 6 ilan/);
+  assert.equal(await cards(), 6);
 });
 
 test('konsolda hata yok', () => {

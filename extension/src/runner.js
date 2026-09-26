@@ -206,7 +206,13 @@ export function runSearch(jobs, { mode = 'auto', concurrency = 3, settleMs = 250
         seenPages.add(pageUrl);
         const pageDiag = { page, url: pageUrl };
         diag.pages.push(pageDiag);
-        const raw = await scrapePage(site, pageUrl, pageDiag);
+        let raw = await scrapePage(site, pageUrl, pageDiag);
+        // Ara sayfa ("Click this link to continue"): bağlantıyı bir kez izle.
+        if (raw && !raw.items.length && raw.continueUrl && !seenPages.has(raw.continueUrl)) {
+          seenPages.add(raw.continueUrl);
+          pageDiag.continued = raw.continueUrl;
+          raw = (await scrapePage(site, raw.continueUrl, pageDiag)) || raw;
+        }
         if (!raw) break;
         lastRaw = raw;
         pageDiag.method = raw.method;

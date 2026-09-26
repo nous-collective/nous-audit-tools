@@ -179,6 +179,56 @@ export function samePath() {
   return layout('Same path', `<ul class="list">${cards}</ul>`);
 }
 
+// ---- Canlı sitelerde görülen yapılar (Eylül 2026) ----
+
+// Goo-net: sınıfsız <li> kartlar; sayfadaki menüler de sınıfsız <li> dolu.
+export function liveGoonet() {
+  const nav = Array.from({ length: 60 }, (_, i) => `<li><a href="/maker/${i}">Maker ${i}</a></li>`).join('');
+  const cards = Array.from({ length: 5 }, (_, i) => `<li><a class="spread_link_new_tab" href="/usedcars/TOYOTA/PRIUS/70007102323026091800${i}/"><div class="photo"><p><img data-src="https://picture1.example/${i}.jpg" alt="TOYOTA PRIUS Z" class="lazyload"></p></div>
+    <div class="sub-content"><h3 class="title"> TOYOTA PRIUS Z </h3><p class="location">Hyogo Japan</p><div>Car Price (FOB) ¥${(4303900 + i).toLocaleString('en-US')}</div><div>2023.09</div><div>WHITE</div><div>20,46${i} km</div><div>2000cc</div></div></a></li>`).join('');
+  return layout('Goo-net', `<ul class="nav">${nav}</ul><div id="list-cars"><ul class="list-listview">${cards}</ul></div><ul class="footer">${nav}</ul>`);
+}
+
+// CardealPage: önce "Click this link to continue" ara sayfası, sonra her ilan 4 tablo satırı.
+export function liveCardealGate() {
+  return `<html><body>Click this link to continue.<br><a href="/live-cardeal-list?token=1">/live-cardeal-list</a></body></html>`;
+}
+export function liveCardealList() {
+  const rows = Array.from({ length: 6 }, (_, i) => {
+    const id = 264690970 + i;
+    const cls = `list_line${i % 2}`;
+    return `<tr class="${cls}"><td class="MakerModel"><a href="/toyota/prius/${id}/?refkey=abc"><b>TOYOTA PRIUS</b></a></td>
+      <td rowspan="3"><a href="/toyota/prius/${id}/?refkey=abc" class="Thumb"><img src="/img/${id}.jpg"></a></td>
+      <td rowspan="4"><div class="listNowFob">US$ ${(11035 + i).toLocaleString('en-US')}</div></td><td rowspan="2">2020 <br /> Jan</td><td rowspan="2">80,32${i}<br />(km)</td></tr>
+      <tr class="${cls}"><td></td></tr>
+      <tr class="${cls}"><td colspan="8"><a class="link" onClick="addComparison()">Comparison</a> <a href="/toyota/prius/${id}/?refkey=abc" class="link">View Detail</a></td></tr>
+      <tr class="${cls}"><td class="MakerModel">Ref No.${id}</td><td>Last Update:Sep/09/2026(JST)</td></tr>`;
+  }).join('');
+  return layout('CardealPage', `<table><tr><th><a href="/live-cardeal-list?s=1">Price</a></th><th><a href="/live-cardeal-list?s=3">Year</a></th></tr>${rows}</table>`);
+}
+
+// Car Junction: Bootstrap "row" kartlar, fiyat yok, birimsiz "Mileage: 66600".
+export function liveCarJunction() {
+  const cards = Array.from({ length: 4 }, (_, i) => `<div class="col-md-12 mb-5"><div class="row"><div class="col-md-3"><div class="row"><a href="/car-detail/toyota-prius-2022-13812${i}.html"><img class="lazy" src="/coming_soon.png" data-original="/car_images2/${i}/a.webp" alt="2022 Toyota / Prius ZVW51"></a></div></div>
+    <div class="col-md-9"><div class="row"><a href="/car-detail/toyota-prius-2022-13812${i}.html"> 2022&nbsp;Toyota Prius&nbsp;ZVW51 </a></div><div class="row">Year: <strong>2022</strong></div><div class="row">Transmission: <strong>Automatic</strong></div><div class="row">Mileage: <strong>6660${i}</strong></div><div class="row"><a href="/enquiry?id=${i}">Enquiry</a></div></div></div></div>`).join('');
+  const chrome = Array.from({ length: 30 }, (_, i) => `<div class="row"><a href="/p/${i}">Link ${i}</a></div>`).join('');
+  return layout('Car Junction', `<div class="container">${chrome}</div><div class="list">${cards}</div>`);
+}
+
+// AutoTrader: kartta yalnızca başlık + fiyat; yıl ve mil satır içi betikteki durumda.
+export function liveAutotrader() {
+  const ids = ['202609236317551', '202605152423999', '202609266402124'];
+  const cards = ids.map((id, i) => `<div class="HZeRDq__root xcjgVW__cardContainer"><a href="/car-details/${id}"><h3>Toyota Prius</h3><p>1.8 VVT-h T3 CVT 5dr</p></a><p class="VEW9xq__displayPrice">£${(2999 + i).toLocaleString('en-GB')}</p><picture><img src="https://m.atcdn.example/${id}.jpg" width="600"></picture></div>`).join('');
+  const state = ids.map((id, i) => `{"__typename":"Advert","id":"${id}","title":"Toyota Prius","price":${2999 + i},"imageList":{"images":[${Array.from({ length: 30 }, (_, k) => `{"url":"https://m.atcdn.example/a/${id}/${k}.jpg"}`).join(',')}]},"mileage":{"__typename":"Mileage","mileage":${133837 + i},"unit":"MILE"},"year":${2009 - i}}`).join(',');
+  return layout('AutoTrader', `<div class="CAcY1W__showroomGrid">${cards}</div><script>window.__STATE__ = {"adverts":[${state}]};</script>`);
+}
+
+// cinch: tek ilan; veri Next.js JSON'unda, sayfada yalnızca detay bağlantısı.
+export function liveCinch() {
+  const data = { props: { pageProps: { searchResults: { response: { vehicleListings: [{ vehicleId: '1d2a07e7-3f87-4f2b-b049-37e36e89e520', make: 'Toyota', model: 'Prius', variant: '1.8 VVTi Plug-in Excel 5dr CVT', price: 12600, mileage: 70428, vehicleYear: 2018, fuelType: 'Plug-in hybrid', transmissionType: 'Automatic', thumbnailUrl: 'https://cdn.example/06_md.jpg' }] } } } } };
+  return layout('cinch', `<main><a href="/used-cars/toyota/prius/details/1d2a07e7-3f87-4f2b-b049-37e36e89e520">Toyota Prius</a></main><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`);
+}
+
 export const ROUTES = {
   '/jp-grid': jpGrid,
   '/uk-cards': ukCards,
@@ -195,6 +245,12 @@ export const ROUTES = {
   '/try': tryPrices,
   '/ssr-recommended': ssrRecommended,
   '/same': samePath,
+  '/live-goonet': liveGoonet,
+  '/live-cardeal': liveCardealGate,
+  '/live-cardeal-list': liveCardealList,
+  '/live-carjunction': liveCarJunction,
+  '/live-autotrader': liveAutotrader,
+  '/live-cinch': liveCinch,
 };
 
 export function startServer() {

@@ -180,3 +180,56 @@ test('Liste ile aynı adresteki ?id= detay bağlantıları alınır', async () =
   assert.equal(items.length, 4);
   assert.ok(items.every((x) => /\/same\?id=50\d/.test(x.url)), items.map((x) => x.url).join('\n'));
 });
+
+// ---- Canlı sitelerde görülen yapılar ----
+const JP = { id: 'jp', name: 'JP', country: 'JP', currency: 'USD' };
+const UK = { id: 'uk', name: 'UK', country: 'UK', currency: 'GBP' };
+
+test('Canlı yapı: Goo-net sınıfsız <li> kartlar', async () => {
+  const raw = await scrape('/live-goonet');
+  const items = toListings(raw.items, JP, raw.url);
+  assert.equal(items.length, 5);
+  assert.equal(items[0].price, 4303900);
+  assert.equal(items[0].currency, 'JPY');
+  assert.deepEqual([items[0].year, items[0].month], [2023, 9]);
+  assert.equal(items[0].km, 20460);
+});
+
+test('Canlı yapı: CardealPage ara sayfası ve 4 satırlı ilanlar', async () => {
+  const gate = await scrape('/live-cardeal');
+  assert.equal(gate.items.length, 0);
+  assert.equal(gate.continueUrl, `${srv.base}/live-cardeal-list?token=1`);
+  const raw = await scrape('/live-cardeal-list');
+  const items = toListings(raw.items, JP, raw.url);
+  assert.equal(items.length, 6);
+  assert.equal(items[0].price, 11035);
+  assert.deepEqual([items[0].year, items[0].month, items[0].km], [2020, 1, 80320]);
+});
+
+test('Canlı yapı: Car Junction bootstrap satırları, birimsiz km', async () => {
+  const raw = await scrape('/live-carjunction');
+  const items = toListings(raw.items, JP, raw.url);
+  assert.equal(items.length, 4);
+  assert.equal(items[0].year, 2022);
+  assert.equal(items[0].km, 66600);
+  assert.ok(items.every((x) => x.url.includes('/car-detail/')));
+});
+
+test('Canlı yapı: AutoTrader yıl/km gömülü veriden', async () => {
+  const raw = await scrape('/live-autotrader');
+  const items = toListings(raw.items, UK, raw.url);
+  assert.equal(items.length, 3);
+  const a = items.find((x) => x.url.endsWith('202609236317551'));
+  assert.equal(a.price, 2999);
+  assert.equal(a.year, 2009);
+  assert.equal(a.km, 215390, '133.837 mil');
+});
+
+test('Canlı yapı: cinch tek ilan Next.js verisinden', async () => {
+  const raw = await scrape('/live-cinch');
+  const items = toListings(raw.items, UK, raw.url);
+  assert.equal(items.length, 1);
+  const c = items[0];
+  assert.equal(c.url, `${srv.base}/used-cars/toyota/prius/details/1d2a07e7-3f87-4f2b-b049-37e36e89e520`);
+  assert.deepEqual([c.price, c.currency, c.year, c.km, c.fuel], [12600, 'GBP', 2018, 113343, 'plug-in']);
+});

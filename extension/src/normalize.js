@@ -110,16 +110,23 @@ export function parseYearMonth(...texts) {
   return { year: null, month: null };
 }
 
-export function parseMileageKm(text) {
+export function parseMileageKm(text, defaultUnit = 'km') {
   if (!text) return null;
   const k = text.match(/\b(\d+(?:\.\d+)?)\s?k\s?(miles|mi|km)\b/i);
   if (k) {
     const v = Number(k[1]) * 1000;
     return /^km/i.test(k[2]) ? v : Math.round(v * 1.609344);
   }
-  const m = text.match(/\b(\d{1,3}(?:[,.\s]\d{3})+|\d+)\s?(km|kms|kilometers|kilometres|miles|mile|mi)\b/i);
-  if (!m) return null;
-  const v = Number(m[1].replace(/[,.\s]/g, ''));
+  // Binlik ayırıcı yalnızca , veya . : "-$30 118,000 km" içindeki boşluk sayıyı birleştirmesin.
+  const m = text.match(/\b(\d{1,3}(?:[,.]\d{3})+|\d+)\s?\(?\s?(km|kms|kilometers|kilometres|miles|mile|mi)\b/i);
+  if (!m) {
+    // Birimsiz "Mileage: 66600" (birim sitenin ülkesine göre varsayılır).
+    const bare = text.match(/\b(?:mileage|odometer)\s*:?\s*(\d{1,3}(?:[,.]\d{3})+|\d{2,7})(?![\d.,]*\s?(?:km|mi))/i);
+    if (!bare) return null;
+    const v = Number(bare[1].replace(/[,.]/g, ''));
+    return defaultUnit === 'mi' ? Math.round(v * 1.609344) : v;
+  }
+  const v = Number(m[1].replace(/[,.]/g, ''));
   if (!Number.isFinite(v)) return null;
   return /^k/i.test(m[2]) ? v : Math.round(v * 1.609344);
 }
@@ -233,17 +240,38 @@ function fingerprint(l) {
   return null;
 }
 
+function urlScore(url) {
+  let sc = 0;
+  if (!url.includes('?')) sc += 2;
+  if (/(detail|stock|car-details|vehicle|listing|\/itm\/|\/lot\/)/i.test(url)) sc += 1;
+  if (/(search|keyword=|[?&]q=|sort=)/i.test(url)) sc -= 3;
+  return sc;
+}
+
 // İki kayıttan boş olmayan alanları birleştirir; kısa (parametresiz) bağlantı tercih edilir.
 export function mergeListing(a, b) {
   const out = { ...a };
   for (const [k, v] of Object.entries(b)) {
     if (out[k] === null || out[k] === undefined || out[k] === '') out[k] = v;
   }
-  // Parametresiz bağlantı tercih edilir (izleme parametresi taşımayan asıl ilan adresi).
-  if (b.url && a.url?.includes('?') && !b.url.includes('?')) out.url = b.url;
-  if ((b.title || '').length > (a.title || '').length && (b.title || '').length <= 160 && !a.title) out.title = b.title;
+  // Asıl ilan sayfası tercih edilir: parametresiz, "detail/stock" içeren; arama/anahtar kelime bağlantısı değil.
+  if (b.url && urlScore(b.url) > urlScore(a.url || '')) out.url = b.url;
+  // Daha açıklayıcı (uzun) başlık tercih edilir: "PRIUS L" yerine "2011 TOYOTA PRIUS L".
+  if ((b.title || '').length > (a.title || '').length && (b.title || '').length <= 160) out.title = b.title;
   out.id = a.id;
   return out;
+}
+
+// Adresteki uzun stok/ilan numarası (7+ rakam). Aynı ilana farklı adres biçimleriyle giden
+// bağlantıları birleştirir: /detail/?refno=0122340268, /detail/toyota/prius/0122340268.html, ?keyword=0122340268
+function refToken(url) {
+  try {
+    const u = new URL(url);
+    const nums = decodeURIComponent(u.pathname + u.search).match(/\d{7,}/g);
+    return nums ? nums.sort((a, b) => b.length - a.length)[0] : null;
+  } catch {
+    return null;
+  }
 }
 
 export function dedupeListings(list) {
@@ -253,15 +281,22 @@ export function dedupeListings(list) {
     byId.set(l.id, byId.has(l.id) ? mergeListing(byId.get(l.id), l) : l);
   }
   const byPrint = new Map();
+  const byRef = new Map();
   const out = [];
   for (const l of byId.values()) {
     const fp = fingerprint(l);
-    const prev = fp && byPrint.get(fp);
-    if (prev) {
-      out[prev.index] = mergeListing(out[prev.index], l);
+    const ref = refToken(l.url);
+    const rk = ref && `${l.siteId}|${ref}`;
+    const idx = (fp && byPrint.get(fp)) ?? (rk && byRef.get(rk));
+    if (idx !== undefined && idx !== null) {
+      out[idx] = mergeListing(out[idx], l);
+      const m = out[idx];
+      const mfp = fingerprint(m);
+      if (mfp) byPrint.set(mfp, idx);
       continue;
     }
-    if (fp) byPrint.set(fp, { index: out.length });
+    if (fp) byPrint.set(fp, out.length);
+    if (rk) byRef.set(rk, out.length);
     out.push(l);
   }
   return out;
@@ -280,15 +315,22 @@ export function toListing(raw, site, pageUrl) {
   const text = raw.text || '';
   // Başlık bulunamadıysa kart metninin fiyattan/km'den önceki kısmı kullanılır.
   const lead = text.split(new RegExp(`${PRICE_PATTERN}|\\d[\\d,.]*\\s?(?:km|miles)\\b`, 'i'))[0];
-  const title = cleanText(raw.title || (lead && lead.trim().length >= 4 ? lead : text), 160);
+  let title = cleanText(raw.title || (lead && lead.trim().length >= 4 ? lead : text), 160);
+  // "Lot info", "View details" gibi genel başlıklar yerine adresteki araç adı (Copart: /lot/123/2017-toyota-prius-…).
+  if (/^(lot info|view details?|details|more info|see details)$/i.test(title)) {
+    const slug = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() || '').replace(/[-_]+/g, ' ').trim();
+    title = slug.length >= 6 && /[a-z]/i.test(slug) ? cleanText(slug.replace(/\b\w/g, (c) => c.toUpperCase()), 160) : lead?.trim() || title;
+  }
   if (!title) return null;
 
-  let price = s.price && s.currency ? { amount: Number(s.price), currency: s.currency.toUpperCase() } : null;
+  const sCur = s.currency || (s.price && site?.currency) || null;
+  let price = s.price && sCur ? { amount: Number(s.price), currency: String(sCur).toUpperCase() } : null;
   let total = null;
   if (!price || !Number.isFinite(price.amount) || price.amount <= 0) {
     ({ price, total } = pickPrices(raw.priceTexts));
   }
 
+  const e = raw.embedded || {};
   let ym;
   if (s.year) {
     ym = { year: Number(s.year), month: s.month ? Number(s.month) : null };
@@ -297,8 +339,12 @@ export function toListing(raw, site, pageUrl) {
     const a = parseYearMonth(title);
     const b = parseYearMonth(text);
     ym = a.year ? { year: a.year, month: a.month ?? (b.year === a.year ? b.month : null) } : b;
+    if (!ym.year && e.year) ym = { year: e.year, month: null };
   }
-  const km = s.km ?? parseMileageKm(text);
+  // Birimi belirtilmemiş kilometre sayacı: İngiliz sitelerinde mil, diğerlerinde km.
+  const unit = site?.country === 'UK' ? 'mi' : 'km';
+  const toKm = (v, u) => (v == null ? null : (u || unit) === 'mi' ? Math.round(v * 1.609344) : v);
+  const km = s.km ?? toKm(s.mileage, s.mileageUnit) ?? parseMileageKm(text, unit) ?? toKm(e.mileage, e.mileageUnit);
   const all = `${title} ${text}`;
 
   let host = '';
@@ -325,7 +371,8 @@ export function toListing(raw, site, pageUrl) {
     transmission: s.transmission ? parseTransmission(s.transmission) : parseTransmission(all),
     steering: parseSteering(all),
     engineCc: parseEngineCc(all),
-    make: s.make || detectMake(title) || detectMake(text),
+    // Standart yazım: gömülü veride "TOYOTA" gibi geçebilir.
+    make: (s.make && (detectMake(s.make) || s.make)) || detectMake(title) || detectMake(text),
     summary: cleanText(text, 300),
     foundAt: new Date().toISOString(),
   };

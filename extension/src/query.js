@@ -169,7 +169,7 @@ export function matchesQuery(listing, q) {
   const title = squash(`${listing.title} ${listing.summary || ''}`);
   if (q.make) {
     const make = listing.make || detectMake(listing.title);
-    if (make && make !== q.make) return false;
+    if (make && squash(make) !== squash(q.make)) return false;
     if (!make && !title.includes(squash(q.make))) {
       // Başlıkta marka yoksa modelle yetin.
       if (!q.model) return false;

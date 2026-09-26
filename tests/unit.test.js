@@ -43,7 +43,7 @@ test('şablon: doğrulanmış site URL yapıları', () => {
   assert.equal(url('autotrader', v), 'https://www.autotrader.co.uk/cars/used/toyota/prius');
   assert.equal(url('ebay', v), 'https://www.ebay.co.uk/sch/i.html?_sacat=9801&_nkw=Toyota+Prius');
   assert.equal(url('gumtree', v), 'https://www.gumtree.com/cars-vans-motorbikes/cars/toyota/prius');
-  assert.equal(url('motors', v), 'https://www.motors.co.uk/toyota/prius/used-cars/');
+  assert.equal(url('motors', v), 'https://www.cazoo.co.uk/cars/toyota/prius/');
   assert.equal(url('pistonheads', v), 'https://www.pistonheads.com/buy/toyota/prius');
   assert.equal(url('cinch', v), 'https://www.cinch.co.uk/used-cars/toyota/prius');
   assert.equal(url('carwow', v), 'https://www.carwow.co.uk/toyota/prius/used');
@@ -64,7 +64,7 @@ test('şablon: çok kelimeli modeller', () => {
   assert.equal(url('picknbuy24', v), 'https://www.picknbuy24.com/usedcar/?maker=toyota&model=prius+phv');
   assert.equal(url('realmotor', v), 'https://www.realmotor.jp/stock/TOYOTA/PRIUS%20PHV');
   const lr = vars({ make: 'Land Rover', model: 'Range Rover Evoque', q: 'Land Rover Range Rover Evoque' });
-  assert.equal(url('motors', lr), 'https://www.motors.co.uk/land-rover/range-rover-evoque/used-cars/');
+  assert.equal(url('motors', lr), 'https://www.cazoo.co.uk/cars/land-rover/range-rover-evoque/');
 });
 
 test('şablon: model yoksa yalnızca markayla arayan şablona düşer (site atlanmaz)', () => {
@@ -391,4 +391,36 @@ test('site testi değerlendirmesi', async () => {
   assert.equal(none.verdict, 'fail');
   assert.deepEqual(none.problems, ['robot']);
   assert.equal(suspectedDuplicates([L(1, { price: null }), L(1, { price: null })]), 0);
+});
+
+test('canlı sitelerden çıkan düzeltmeler', () => {
+  // PicknBuy24: gömülü veride büyük harfli marka
+  const l = toListing({ url: 'https://www.picknbuy24.com/detail/?refno=1', title: '2011 TOYOTA PRIUS L', structured: { make: 'TOYOTA', price: 1160, currency: 'USD' }, priceTexts: [], text: '' }, { id: 'p', country: 'JP' });
+  assert.equal(l.make, 'Toyota');
+  assert.ok(matchesQuery(l, { make: 'Toyota', model: 'Prius' }));
+  assert.ok(matchesQuery({ title: 'x prius', make: 'TOYOTA' }, { make: 'Toyota', model: 'Prius' }));
+  // Copart: "Lot info" başlığı yerine adresteki araç adı
+  const c = toListing({ url: 'https://www.copart.co.uk/lot/56012246/clean-title-2017-toyota-prius-sandwich', title: 'Lot info', priceTexts: [{ text: '£1,300' }], text: 'Lot info £1,300' }, { id: 'copart', country: 'UK' });
+  assert.equal(c.title, 'Clean Title 2017 Toyota Prius Sandwich');
+  assert.equal(c.year, 2017);
+  // CardealPage: parantezli birim; PicknBuy24: boşlukla ayrılmış önceki sayı km'ye karışmaz
+  assert.equal(parseMileageKm('80,320 (km)'), 80320);
+  assert.equal(parseMileageKm('-$30 118,000 km (73,200 mile)'), 118000);
+  // Car Junction: birimsiz "Mileage: 66600" (Japon sitesi km, İngiliz sitesi mil)
+  assert.equal(parseMileageKm('Year: 2022 Mileage: 66600 Doors: 4'), 66600);
+  assert.equal(parseMileageKm('Mileage: 10000', 'mi'), 16093);
+  // PicknBuy24: aynı stok numarası üç farklı adres biçimi → tek ilan
+  const site = { id: 'pb', name: 'PB', country: 'JP' };
+  const d = toListings(
+    [
+      { url: 'https://www.picknbuy24.com/usedcar/?keyword=0122340268', title: 'PRIUS L', priceTexts: [{ text: 'US$1,160' }], text: '' },
+      { url: 'https://www.picknbuy24.com/detail/?refno=0122340268', title: '2011 TOYOTA PRIUS L', priceTexts: [{ text: 'US$ 1,160' }], text: '118,000 km' },
+      { url: 'https://www.picknbuy24.com/detail/toyota/prius/0122340268.html', title: '2011 TOYOTA PRIUS L', priceTexts: [{ text: 'US$ 1,160' }], text: '' },
+    ],
+    site,
+  );
+  assert.equal(d.length, 1);
+  assert.equal(d[0].title, '2011 TOYOTA PRIUS L');
+  assert.equal(d[0].km, 118000);
+  assert.ok(!d[0].url.includes('keyword='), 'arama bağlantısı yerine ilan sayfası');
 });
