@@ -215,3 +215,12 @@ label.inline select { width: auto; }
 .pager-buttons button.current { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 700; }
 .pager-buttons .gap { padding: 6px 4px; color: var(--muted); }
 .pager-info { font-size: 13px; text-align: center; }
+
+.order { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.order dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; font-size: 13px; }
+.order dt { color: var(--muted); }
+.order dd { margin: 0; word-break: break-word; }
+.order .countdown { font-weight: 700; color: var(--ok); }
+.order .countdown.arrived { color: var(--warn); }
+.order .btns { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.small { font-size: 12px; }

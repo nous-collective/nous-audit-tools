@@ -310,6 +310,44 @@ test('ara sayfa ("Click this link to continue") otomatik izlenir', async () => {
   assert.equal(await cards(), 6);
 });
 
+test('satın alınan aracın sipariş/nakliye bilgisi sayfadan alınır ve takip edilir', async () => {
+  const page = await ctx.newPage();
+  await page.goto(`${srv.base}/order-table`);
+  const tabId = await dashboard.evaluate(async (u) => (await chrome.tabs.query({ url: `${u}/order-table` }))[0].id, srv.base);
+  const popup = await ctx.newPage();
+  await popup.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+  await popup.click('#order');
+  await popup.waitForSelector('#order-box:not([hidden])');
+  const fields = await popup.$$eval('#order-fields li', (lis) => lis.map((l) => l.textContent));
+  assert.ok(fields.includes('Gemi: MORNING CHERRY'), fields.join(' | '));
+  assert.ok(fields.includes('Tahmini varış (ETA): 2026-11-03'));
+  // Takip listesindeki araç (aynı site) otomatik seçilir.
+  const { favorites } = await popup.evaluate(() => chrome.storage.local.get('favorites'));
+  const favId = Object.keys(favorites)[0];
+  assert.equal(await popup.inputValue('#order-target'), favId);
+  await popup.click('#order-save');
+  await popup.waitForFunction(() => /Kaydedildi/.test(document.querySelector('#msg').textContent));
+  const after = (await popup.evaluate(() => chrome.storage.local.get('favorites'))).favorites[favId];
+  assert.equal(after.status, 'Yolda');
+  assert.equal(after.order.fields.bl, 'NYKS1234567');
+  assert.equal(after.order.fields.pod, 'FAMAGUSTA');
+
+  // Panelde takip listesi: gemi, ETA, geri sayım, gemi izleme bağlantısı.
+  await dashboard.click('.tabs button[data-tab=favorites]');
+  await dashboard.waitForSelector('#favorites .order');
+  const block = await dashboard.textContent('#favorites .order');
+  assert.match(block, /MORNING CHERRY/);
+  assert.match(block, /2026-11-03/);
+  assert.match(block, /Varışa \d+ gün|Bugün varıyor|varmış olmalı/);
+  assert.ok(await dashboard.$('#favorites .order a[href*="vesselfinder.com/vessels?name=MORNING%20CHERRY"]'));
+  // Yeniden tara: sayfa değişmediği için "güncel".
+  await dashboard.click('#favorites .order button:text-is("Yeniden tara")');
+  await dashboard.waitForFunction(() => /güncel/.test(document.querySelector('#toast').textContent), null, { timeout: 60000 });
+  await dashboard.click('.tabs button[data-tab=results]');
+  await popup.close();
+  await page.close();
+});
+
 test('konsolda hata yok', () => {
   assert.deepEqual(errors, []);
 });

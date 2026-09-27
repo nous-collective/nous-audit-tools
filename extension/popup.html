@@ -9,7 +9,15 @@
     <h1><img src="icons/icon32.png" alt="" /> KKTC Araç Toplayıcı</h1>
     <button id="open" class="primary">Paneli aç</button>
     <button id="capture">Bu sayfadaki ilanları topla</button>
-    <p id="msg" class="muted">Otomatik aranamayan ya da robot doğrulaması isteyen sitelerde: sitede kendi aramanı yap, sonra bu düğmeyle sayfadaki ilanları panele ekle.</p>
+    <button id="order">Sipariş / nakliye bilgilerini al</button>
+    <div id="order-box" hidden>
+      <ul id="order-fields"></ul>
+      <label>Hangi araç?
+        <select id="order-target"></select>
+      </label>
+      <button id="order-save" class="primary">Takip listesine kaydet</button>
+    </div>
+    <p id="msg" class="muted">İlan toplamak için: sitede aramanı yap, sonra "Bu sayfadaki ilanları topla". Satın aldığın aracın gemi, yükleme ve varış tarihini almak için: satıcının sipariş sayfasını aç, sonra "Sipariş / nakliye bilgilerini al".</p>
     <script type="module" src="src/popup.js"></script>
   </body>
 </html>

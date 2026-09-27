@@ -6,7 +6,7 @@
 //   - panelde yüklenir: run({ doc, baseUrl }) indirilmiş HTML'i (DOMParser) okur.
 // Sonuç ham veridir; ayrıştırma ve tekrar ayıklama normalize.js'te yapılır.
 (() => {
-  if (globalThis.__kktcScraper) return;
+  if (globalThis.__kktcScraper?.pairs) return;
 
   // normalize.js'teki PRICE_PATTERN ile aynı olmalı (testte kontrol edilir).
   const PRICE_SRC =
@@ -458,6 +458,97 @@
     return items;
   }
 
+  // ---------- 4) Etiket–değer çiftleri (sipariş/nakliye sayfaları) ----------
+  // Sitenin teknolojisinden bağımsız: HTML tablo/tanım listesi, yan yana etiket-değer
+  // kutuları, "Etiket: değer" metni, salt okunur form alanları ve gömülü JSON.
+  function collectPairs(ctx) {
+    const pairs = [];
+    const add = (label, value, via) => {
+      const l = norm(label).replace(/[：:]$/, '').trim();
+      const v = norm(value);
+      if (l && v && l.length <= 60 && v.length <= 200 && l !== v) pairs.push({ label: l, value: v, via });
+    };
+    const doc = ctx.doc;
+    // Tablolar: <th>etiket</th><td>değer</td> ve <td>etiket</td><td>değer</td> dizileri
+    for (const tr of doc.querySelectorAll('tr')) {
+      const cells = [...tr.children].filter((c) => /^(TH|TD)$/.test(c.tagName));
+      for (let i = 0; i + 1 < cells.length; i++) {
+        const a = textOf(ctx, cells[i]);
+        const b = textOf(ctx, cells[i + 1]);
+        if (cells[i].tagName === 'TH' || (a.length <= 40 && b && (i % 2 === 0 || cells.length === 2))) add(a, b, 'table');
+      }
+    }
+    // Sütun başlıklı tablolar: <thead> başlığı + ilk veri satırı
+    for (const table of doc.querySelectorAll('table')) {
+      const head = [...(table.querySelector('thead tr, tr:first-child')?.children || [])].filter((c) => c.tagName === 'TH');
+      if (head.length < 2) continue;
+      const row = [...table.querySelectorAll('tr')].find((r) => r.querySelector('td'));
+      const cells = row ? [...row.children] : [];
+      head.forEach((th, i) => cells[i] && add(textOf(ctx, th), textOf(ctx, cells[i]), 'table-head'));
+    }
+    // Tanım listeleri
+    for (const dt of doc.querySelectorAll('dt')) {
+      const dd = dt.nextElementSibling;
+      if (dd?.tagName === 'DD') add(textOf(ctx, dt), textOf(ctx, dd), 'dl');
+    }
+    // Yan yana kutular: kısa metinli öğe + hemen ardından gelen kardeşi (div/span/p/label/strong)
+    for (const el of doc.querySelectorAll('div, span, p, label, strong, b, li, h4, h5, h6')) {
+      if (el.children.length > 1) continue;
+      const a = textOf(ctx, el);
+      if (!a || a.length > 40) continue;
+      const sib = el.nextElementSibling;
+      if (sib && sib.children.length <= 3) {
+        const b = textOf(ctx, sib);
+        if (b && b.length <= 120) add(a, b, 'sibling');
+      }
+    }
+    // "Etiket: değer" metinleri (satır satır)
+    const body = live(ctx) ? doc.body.innerText : textOf(ctx, doc.body);
+    for (const line of String(body || '').split(/\n| {3,}|\t/)) {
+      const m = line.match(/^\s*([^:：]{2,40})[:：]\s*(.{1,120})$/);
+      if (m) add(m[1], m[2], 'text');
+    }
+    // Salt okunur form alanları
+    for (const inp of doc.querySelectorAll('input[value]:not([type=hidden]):not([type=password]), textarea')) {
+      const id = inp.getAttribute('id');
+      const lab = (id && doc.querySelector(`label[for="${CSS.escape(id)}"]`)) || inp.closest('label');
+      const label = (lab && textOf(ctx, lab)) || inp.getAttribute('aria-label') || inp.getAttribute('placeholder') || inp.getAttribute('name');
+      add(label, inp.value || inp.getAttribute('value') || inp.textContent, 'input');
+    }
+    // Gömülü JSON: anahtar → metin/sayı değerleri (Next.js, Nuxt, satır içi durum, JSON-LD)
+    let budget = 20000;
+    const walk = (node, key, depth) => {
+      if (--budget < 0 || depth > 12 || node == null) return;
+      if (typeof node === 'string' || typeof node === 'number') {
+        if (key && !/^\d+$/.test(key)) add(key, String(node), 'json');
+        return;
+      }
+      if (Array.isArray(node)) return node.slice(0, 50).forEach((x) => walk(x, key, depth + 1));
+      if (typeof node === 'object') for (const [k, v] of Object.entries(node)) walk(v, k, depth + 1);
+    };
+    for (const sc of doc.querySelectorAll('script:not([src])')) {
+      const t = sc.textContent || '';
+      if (t.length < 20 || t.length > 3e6) continue;
+      const type = sc.getAttribute('type') || '';
+      if (/json/i.test(type) || sc.id === '__NEXT_DATA__' || sc.id === '__NUXT_DATA__') {
+        try {
+          walk(JSON.parse(t), '', 0);
+          continue;
+        } catch {}
+      }
+      // Satır içi betik: "anahtar":"değer" / anahtar: 'değer' çiftleri
+      for (const m of t.matchAll(/["']?([A-Za-z_][\w]{1,40})["']?\s*:\s*["']([^"'\\]{1,120})["']/g)) {
+        if (--budget < 0) break;
+        add(m[1], m[2], 'script');
+      }
+    }
+    return pairs;
+  }
+
+  function live(ctx) {
+    return ctx.layout;
+  }
+
   // Sonraki sayfa bağlantısı (rel=next, "Next", "›", "次へ"…).
   function nextPageUrl(ctx) {
     const page = new URL(ctx.base);
@@ -548,5 +639,13 @@
     };
   }
 
-  globalThis.__kktcScraper = { run };
+  // Sipariş/nakliye sayfası: yalnızca etiket–değer çiftleri.
+  async function pairs(opts = {}) {
+    const doc = opts.doc || document;
+    const url = opts.baseUrl || location.href;
+    const ctx = { doc, base: baseOf(doc, url), layout: !opts.doc };
+    return { url, title: doc.title, pairs: doc.body ? collectPairs(ctx) : [] };
+  }
+
+  globalThis.__kktcScraper = { run, pairs };
 })();

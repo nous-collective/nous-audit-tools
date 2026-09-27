@@ -6,6 +6,8 @@ import { matchesQuery, normalizeQuery } from './query.js';
 import { AGE_LABEL, ageStatus, inquiryMessage, landedCost } from './kktc.js';
 import { getFavorites, getResults, getSettings, saveFavorites, saveResults, saveSettings } from './storage.js';
 import { runSearch } from './runner.js';
+import { ORDER_LABEL_TR, daysUntil, vesselTrackUrl } from './orderinfo.js';
+import { applyOrder, refreshOrderUrl } from './ordertrack.js';
 import { TEST_QUERY, evaluateSite } from './sitetest.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -427,8 +429,19 @@ function renderSiteFilter() {
 }
 
 // ---------- ilan kartları ----------
-function ageBadge(l) {
-  const a = ageStatus(l, state.settings.kktc);
+// Satın alınan araçta gerçek ilk tescil tarihi ve ETA varsa yaş kontrolü onlarla yapılır.
+function ageFor(l, order) {
+  const f = order?.fields || {};
+  const reg = typeof f.firstReg === 'string' && f.firstReg.match(/^(\d{4})-(\d{2})/);
+  const listing = reg ? { ...l, year: Number(reg[1]), month: Number(reg[2]) } : l;
+  const opts = { ...state.settings.kktc };
+  const days = daysUntil(f.eta);
+  if (days !== null) opts.shippingMonths = days / 30.44;
+  return ageStatus(listing, opts);
+}
+
+function ageBadge(l, order) {
+  const a = ageFor(l, order);
   const short = { ok: 'KKTC ✓', risky: 'KKTC: sınırda', no: 'KKTC: yaşlı', unknown: 'Yıl ?' }[a];
   return h('span', { class: `badge ${a}`, title: AGE_LABEL[a] }, short);
 }
@@ -601,11 +614,12 @@ function renderFavorites() {
         h(
           'div',
           { class: 'meta' },
-          h('div', { class: 'badges' }, h('span', { class: 'badge' }, `${COUNTRY_FLAG[l.country] || '🌐'} ${l.siteName}`), ageBadge(l)),
+          h('div', { class: 'badges' }, h('span', { class: 'badge' }, `${COUNTRY_FLAG[l.country] || '🌐'} ${l.siteName}`), ageBadge(l, fav.order)),
           h('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer' }, h('strong', null, l.title)),
           h('span', { class: 'muted' }, specsText(l)),
           priceBlock(l),
           costLine(l),
+          orderBlock(fav),
           h('span', { class: 'muted' }, `Eklendi: ${new Date(fav.addedAt).toLocaleString('tr-TR')}`),
         ),
         h(
@@ -654,6 +668,65 @@ function renderFavorites() {
       );
     }),
   );
+}
+
+// ---------- sipariş / nakliye takibi ----------
+function orderBlock(fav) {
+  const o = fav.order;
+  if (!o) {
+    return h('span', { class: 'muted small' }, 'Satın aldıysan: satıcının sipariş sayfasını aç, eklenti simgesinden "Sipariş / nakliye bilgilerini al".');
+  }
+  const f = o.fields;
+  const days = daysUntil(f.eta);
+  const countdown =
+    days === null ? null : days > 0 ? `Varışa ${days} gün` : days === 0 ? 'Bugün varıyor' : `${-days} gün önce varmış olmalı`;
+  const order = ['vessel', 'voyage', 'etd', 'eta', 'pol', 'pod', 'bl', 'container', 'chassis', 'stockNo', 'status', 'payment', 'firstReg'];
+  return h(
+    'div',
+    { class: 'order' },
+    countdown ? h('div', { class: `countdown ${days !== null && days <= 0 ? 'arrived' : ''}` }, `🚢 ${countdown}`) : null,
+    h(
+      'dl',
+      null,
+      order.filter((k) => f[k]).map((k) => [h('dt', null, ORDER_LABEL_TR[k]), h('dd', null, String(f[k]))]),
+    ),
+    h(
+      'div',
+      { class: 'btns' },
+      f.vessel ? h('a', { href: vesselTrackUrl(f.vessel), target: '_blank', rel: 'noopener noreferrer' }, 'Gemiyi izle ↗') : null,
+      o.sourceUrl ? h('a', { href: o.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Sipariş sayfası ↗') : null,
+      o.sourceUrl ? h('button', { type: 'button', onclick: () => refreshOrder(fav, true) }, 'Yeniden tara') : null,
+    ),
+    h('span', { class: 'muted small' }, `Son okuma: ${new Date(o.updatedAt).toLocaleString('tr-TR')}`),
+    o.history?.length
+      ? h('details', null, h('summary', null, `Değişiklikler (${o.history.length})`), h('ul', null, o.history.slice().reverse().map((c) => h('li', null, `${new Date(c.at).toLocaleDateString('tr-TR')}: ${ORDER_LABEL_TR[c.field] || c.field} ${c.from} → ${c.to}`))))
+      : null,
+  );
+}
+
+async function refreshOrder(fav, manual = false) {
+  try {
+    const info = await refreshOrderUrl(fav.order.sourceUrl);
+    if (!info.found) {
+      if (manual) toast('Sipariş sayfasında bilgi bulunamadı. Oturumun kapanmış olabilir: sayfayı açıp giriş yap.', 6000);
+      return;
+    }
+    const changes = applyOrder(fav, info, fav.order.sourceUrl);
+    await saveFavorites(state.favorites);
+    if (changes.length) toast(`${fav.listing.title.slice(0, 40)}: ${changes.map((k) => ORDER_LABEL_TR[k] || k).join(', ')} değişti.`, 7000);
+    else if (manual) toast('Sipariş bilgileri güncel.');
+    renderFavorites();
+  } catch (e) {
+    if (manual) toast(`Yeniden taranamadı: ${e.message}`, 6000);
+  }
+}
+
+// Panel açılınca 12 saatten eski sipariş bilgilerini arka planda yenile (sırayla).
+async function refreshStaleOrders() {
+  const stale = Object.values(state.favorites).filter(
+    (f) => f.order?.sourceUrl && f.status !== 'Teslim alındı' && Date.now() - new Date(f.order.updatedAt).getTime() > 12 * 3600 * 1000,
+  );
+  for (const fav of stale) await refreshOrder(fav);
 }
 
 // ---------- siteler ----------
@@ -1070,7 +1143,14 @@ async function init() {
 
   // Eklenti simgesinden "Bu sayfadaki ilanları topla" ile eklenen sonuçlar.
   // Kendi kayıtlarımız da buraya düşer; birleştirme yalnızca yeni ilanları ekler.
-  chrome.storage.onChanged.addListener((changes, area) => {
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area === 'local' && changes.favorites) {
+      state.favorites = await getFavorites();
+      updateFavCount();
+      // Not yazılırken yeniden çizme (odak kaybolmasın).
+      const typing = document.activeElement?.closest?.('#favorites');
+      if ($('#tab-favorites').classList.contains('active') && !typing) renderFavorites();
+    }
     if (area !== 'local' || !changes.results) return;
     const known = new Set(state.results.map((x) => x.id));
     const fresh = (changes.results.newValue || []).filter((it) => !known.has(it.id));
@@ -1092,6 +1172,7 @@ async function init() {
 
   await ensureRates();
   renderResults();
+  refreshStaleOrders();
 }
 
 init();

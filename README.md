@@ -36,6 +36,28 @@ Japonya ve İngiltere'deki ikinci el araç sitelerini tek panelde toplar. İlanl
   - İngiliz satıcılar için V5C, MOT ve ihracata teslim bilgisi ister.
 - **Satın alma:** Ödeme, sözleşme ve mezat teklifi güvenlik gereği her sitenin kendi sayfasında yapılır. *Sitede satın al ↗* ilanı açar; eklenti ödeme yapmaz ve kart bilgisi istemez.
 
+### Satın aldığın aracı takip etme (gemi, yükleme ve varış tarihi)
+
+1. Satıcının sitesinde siparişinin sayfasını aç (ör. "My Page", "Order", "Shipment").
+2. Eklenti simgesine tıkla ve **Sipariş / nakliye bilgilerini al**'a bas.
+3. Bulunan bilgileri kontrol et. Eklenti bilginin takip listesindeki hangi araca ait olduğunu tahmin eder; gerekirse seçimi değiştir. Sonra **Takip listesine kaydet**'e bas.
+
+Takip listesinde araç kartı şunları gösterir:
+
+- gemi, sefer, yükleme (ETD) ve varış (ETA) tarihleri
+- B/L, konteyner ve şasi numarası, varış limanı
+- "Varışa 18 gün" geri sayımı ve *Gemiyi izle* bağlantısı
+
+KKTC yaş kontrolü artık gerçek ilk tescil tarihine ve ETA'ya göre yapılır. Panel açıldığında 12 saatten eski sipariş bilgileri senin oturumunla arka planda yeniden okunur; değişen alanlar (ör. ETA ertelendi) bildirilir ve kaydedilir. *Yeniden tara* ile istediğin zaman güncelleyebilirsin.
+
+**Siteye özel kod yok.** Okuyucu sitenin hangi teknolojiyle yapıldığından bağımsız çalışır. Bilgiyi şu kaynaklardan toplar:
+
+- HTML tabloları, tanım listeleri ve yan yana etiket–değer kutuları
+- "Etiket: değer" metinleri ve form alanları
+- sayfaya gömülü veri (Next.js, Nuxt, satır içi durum nesneleri, JSON)
+
+JavaScript ile çizilen sayfalar gerçek sekmede okunur. Etiketler ve JSON anahtarları (`vesselName`, `eta_date`…) İngilizce, Japonca, Türkçe, Rusça ve Korece bir sözlükle eşleştirilir. Her değer doğrulanır: başka bir etiket, düğme metni ya da model kodu bilgi sanılmaz.
+
 ### Otomatik aranamayan siteler
 
 Şablonu olmayan, robot doğrulaması isteyen ya da üyelik gerektiren siteler arama sonrası durum çubuğunda *Otomatik aranamayan N site* grubunda listelenir. Bunlarda şöyle yap:

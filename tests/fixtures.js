@@ -229,6 +229,50 @@ export function liveCinch() {
   return layout('cinch', `<main><a href="/used-cars/toyota/prius/details/1d2a07e7-3f87-4f2b-b049-37e36e89e520">Toyota Prius</a></main><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`);
 }
 
+// ---- Sipariş / nakliye sayfaları: farklı site teknolojileri ----
+const ORDER = { vessel: 'MORNING CHERRY', voyage: '112A', etd: '2026-10-12', eta: '2026-11-03', bl: 'NYKS1234567', chassis: 'ZVW50-8012345', stock: 'BF123456' };
+
+// Klasik sunucu tarafı (PHP vb.): <th>/<td> tablo.
+export function orderHtmlTable() {
+  return layout('My Order', `<h2>Order BF123456</h2><table class="order">
+    <tr><th>Stock No.</th><td>${ORDER.stock}</td></tr><tr><th>Chassis No.</th><td>${ORDER.chassis}</td></tr>
+    <tr><th>Vessel Name</th><td>${ORDER.vessel}</td></tr><tr><th>Voyage No.</th><td>${ORDER.voyage}</td></tr>
+    <tr><th>ETD</th><td>12-Oct-2026</td></tr><tr><th>ETA</th><td>Nov 3, 2026</td></tr>
+    <tr><th>Port of Loading</th><td>YOKOHAMA</td></tr><tr><th>Port of Discharge</th><td>FAMAGUSTA</td></tr>
+    <tr><th>B/L No.</th><td>${ORDER.bl}</td></tr><tr><th>Payment Status</th><td>Paid</td></tr></table>`);
+}
+
+// React/Vue uygulaması: içerik JavaScript ile sonradan, etiket/değer kutuları olarak çizilir.
+export function orderSpa() {
+  const script = `setTimeout(() => {
+    const rows = [['Vessel','${ORDER.vessel}'],['Estimated Departure','2026/10/12'],['Estimated Arrival','2026/11/03'],['Bill of Lading','${ORDER.bl}'],['Frame No','${ORDER.chassis}'],['Shipping Status','On board']];
+    document.querySelector('#app').innerHTML = rows.map(([l, v]) => '<div class="row"><span class="lbl">' + l + '</span><span class="val">' + v + '</span></div>').join('');
+  }, 800);`;
+  return layout('Shipment', '<div id="app">Loading…</div>', `<script>${script}</script>`);
+}
+
+// Next.js: veri yalnızca __NEXT_DATA__ içinde, sayfada neredeyse hiçbir şey yok.
+export function orderNext() {
+  const data = { props: { pageProps: { order: { stockId: ORDER.stock, chassisNumber: ORDER.chassis, shipment: { vesselName: ORDER.vessel, voyageNo: ORDER.voyage, etd: '2026-10-12T00:00:00Z', eta: '2026-11-03T00:00:00Z', blNo: ORDER.bl, portOfDischarge: 'Famagusta' } } } } };
+  return layout('Order', '<div id="__next"></div>', `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`);
+}
+
+// Satır içi durum nesnesi (Angular/jQuery tarzı): window.__STATE__ = {...}
+export function orderInlineState() {
+  return layout('Order', '<main><h1>Your vehicle</h1></main>', `<script>window.__STATE__ = {"shipment":{"vessel_name":"${ORDER.vessel}","eta_date":"03.11.2026","etd_date":"12.10.2026","bl_number":"${ORDER.bl}"}};</script>`);
+}
+
+// Japonca site: tablo etiketleri Japonca, tarihler 年月日.
+export function orderJapanese() {
+  return layout('ご注文', `<table><tr><td>車台番号</td><td>${ORDER.chassis}</td></tr><tr><td>船名</td><td>${ORDER.vessel}</td></tr>
+    <tr><td>出港予定日</td><td>2026年10月12日</td></tr><tr><td>到着予定日</td><td>2026年11月3日</td></tr><tr><td>仕向港</td><td>FAMAGUSTA</td></tr></table>`);
+}
+
+// Düz metin: "Etiket: değer" satırları.
+export function orderText() {
+  return layout('Order', `<pre>Vessel: ${ORDER.vessel}\nETD: 12/10/2026\nETA: 03/11/2026\nB/L No: ${ORDER.bl}\nChassis No: ${ORDER.chassis}</pre>`);
+}
+
 export const ROUTES = {
   '/jp-grid': jpGrid,
   '/uk-cards': ukCards,
@@ -251,6 +295,12 @@ export const ROUTES = {
   '/live-carjunction': liveCarJunction,
   '/live-autotrader': liveAutotrader,
   '/live-cinch': liveCinch,
+  '/order-table': orderHtmlTable,
+  '/order-spa': orderSpa,
+  '/order-next': orderNext,
+  '/order-state': orderInlineState,
+  '/order-ja': orderJapanese,
+  '/order-text': orderText,
 };
 
 export function startServer() {

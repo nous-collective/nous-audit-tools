@@ -443,3 +443,39 @@ test('indirim rozeti fiyat sayılmaz (cinch canlı)', () => {
   assert.equal(t('£500 cashback £12,995'), 12995);
   assert.equal(t('Save £1,000 now £9,995'), 9995);
 });
+
+test('sipariş bilgisi: etiket ve JSON anahtarı eşleştirme, tarih biçimleri', async () => {
+  const { fieldForLabel, parseDateAny, extractOrderInfo, daysUntil } = await import('../extension/src/orderinfo.js');
+  // HTML etiketleri, JSON anahtarları, farklı diller
+  for (const [label, field] of [
+    ['Vessel Name', 'vessel'], ['vesselName', 'vessel'], ['vessel_name', 'vessel'], ['船名', 'vessel'], ['Gemi adı', 'vessel'],
+    ['ETA', 'eta'], ['etaDate', 'eta'], ['Estimated Arrival', 'eta'], ['到着予定日', 'eta'], ['Tahmini varış', 'eta'],
+    ['ETD', 'etd'], ['Shipping Date', 'etd'], ['出港予定日', 'etd'],
+    ['B/L No.', 'bl'], ['blNo', 'bl'], ['bl_number', 'bl'], ['Chassis No.', 'chassis'], ['chassisNumber', 'chassis'], ['車台番号', 'chassis'],
+    ['Payment Status', 'payment'], ['Shipping Status', 'status'], ['Port of Discharge', 'pod'], ['portOfDischarge', 'pod'],
+  ]) assert.equal(fieldForLabel(label), field, label);
+  assert.equal(fieldForLabel('Customer Review Rating Summary Headline Text Block'), null, 'uzun metin etiket değildir');
+  assert.equal(fieldForLabel('Beta version'), null, '"beta" içindeki "eta" sayılmaz');
+
+  for (const [t, iso] of [
+    ['2026/11/03', '2026-11-03'], ['2026-11-03T00:00:00Z', '2026-11-03'], ['2026年11月3日', '2026-11-03'],
+    ['03-Nov-2026', '2026-11-03'], ['3 Nov 2026', '2026-11-03'], ['Nov 3, 2026', '2026-11-03'], ['November 3rd, 2026', '2026-11-03'],
+    ['03.11.2026', '2026-11-03'], ['03/11/2026', '2026-11-03'], ['2026/11', '2026-11'], ['Nov 2026', '2026-11'],
+  ]) assert.equal(parseDateAny(t), iso, t);
+  assert.equal(parseDateAny('TBD'), null);
+
+  const r = extractOrderInfo([
+    { label: 'ETA', value: 'TBD' }, // geçersiz → sonraki aday
+    { label: 'Estimated Arrival', value: '2026/11/03' },
+    { label: 'Vessel', value: '-' },
+    { label: 'vesselName', value: 'MORNING CHERRY' },
+    { label: 'Mileage', value: '45,000 km' },
+    // Gerçek sayfalarda görülen gürültü (SBT / BE FORWARD detay sayfaları)
+    { label: 'Destination Port', value: 'Destination Port' },
+    { label: 'Payment', value: 'Change Consignee Info' },
+    { label: 'Chassis No', value: 'ZVW51' },
+    { label: 'Port of Discharge', value: 'FAMAGUSTA' },
+  ]);
+  assert.deepEqual(r.fields, { eta: '2026-11-03', vessel: 'MORNING CHERRY', pod: 'FAMAGUSTA' });
+  assert.equal(daysUntil('2026-11-03', new Date(2026, 9, 27)), 7);
+});

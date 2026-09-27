@@ -233,3 +233,37 @@ test('Canlı yapı: cinch tek ilan Next.js verisinden', async () => {
   assert.equal(c.url, `${srv.base}/used-cars/toyota/prius/details/1d2a07e7-3f87-4f2b-b049-37e36e89e520`);
   assert.deepEqual([c.price, c.currency, c.year, c.km, c.fuel], [12600, 'GBP', 2018, 113343, 'plug-in']);
 });
+
+// ---- Sipariş / nakliye bilgisi: farklı site teknolojilerinde aynı genel okuyucu ----
+import { extractOrderInfo } from '../extension/src/orderinfo.js';
+
+async function orderFrom(path, wait = 0) {
+  const page = await browser.newPage();
+  try {
+    await page.goto(srv.base + path);
+    if (wait) await page.waitForTimeout(wait);
+    await page.addScriptTag({ content: SCRAPER });
+    const r = await page.evaluate(() => globalThis.__kktcScraper.pairs());
+    return extractOrderInfo(r.pairs).fields;
+  } finally {
+    await page.close();
+  }
+}
+
+for (const [path, wait, name] of [
+  ['/order-table', 0, 'HTML tablo (sunucu tarafı)'],
+  ['/order-spa', 1500, 'JavaScript ile çizilen etiket/değer kutuları'],
+  ['/order-next', 0, 'yalnızca Next.js verisi'],
+  ['/order-state', 0, 'satır içi window.__STATE__'],
+  ['/order-ja', 0, 'Japonca tablo'],
+  ['/order-text', 0, '"Etiket: değer" metni'],
+]) {
+  test(`Sipariş bilgisi: ${name}`, async () => {
+    const f = await orderFrom(path, wait);
+    assert.equal(f.vessel, 'MORNING CHERRY', JSON.stringify(f));
+    assert.equal(f.eta, '2026-11-03', JSON.stringify(f));
+    assert.equal(f.etd, '2026-10-12', JSON.stringify(f));
+    if (path !== '/order-ja') assert.equal(f.bl, 'NYKS1234567');
+    if (!['/order-state'].includes(path)) assert.equal(f.chassis, 'ZVW50-8012345');
+  });
+}
