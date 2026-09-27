@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "KKTC Araç Toplayıcı",
   "short_name": "KKTC Araç",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Japonya ve İngiltere araç sitelerindeki ilanları tek panelde toplar, filtreler ve KKTC ithalatı için değerlendirir.",
   "icons": {
     "16": "icons/icon16.png",
@@ -39,6 +39,9 @@
     "*://*.carjunction.com/*",
     "*://*.satjapan.com/*",
     "*://*.autorec.co.jp/*",
+    "*://*.japanesevehicles.com/*",
+    "*://*.japanesecartrade.com/*",
+    "*://*.nichibojapan.com/*",
     "*://*.hasnihon.com/*",
     "*://*.japancardirect.com/*",
     "*://*.carsjapan.cy/*",

@@ -131,6 +131,33 @@ export const SITES = [
     kind: 'exporter',
   },
   {
+    // TRUST Company (1988'den beri, Kıbrıs sayfası var). Site Eylül 2026'da yeni arayüze geçti:
+    // eski stocklist.php model parametresini düşürerek /stocklist?maker= adresine yönlendiriyor.
+    // Yeni arayüz JavaScript ile çizildiği için sekmede açılır; model=PRIUS canlı doğrulandı.
+    id: 'trust',
+    name: 'TRUST Japan (JapaneseVehicles.com)',
+    country: 'JP',
+    home: 'https://japanesevehicles.com/',
+    templates: ['https://japanesevehicles.com/stocklist?maker={make|upper|enc}[&model={model|upper|enc}]'],
+    verified: true,
+    currency: 'USD',
+    kind: 'exporter',
+    render: 'tab',
+  },
+  {
+    // Cloudflare korumalı; model sayfaları kimlik numarası istiyor (make-model/toyota-1-prius-134.html),
+    // ilan kartları güvenilir okunamadı. Elle: sitede ara, sonra "Bu sayfadaki ilanları topla".
+    id: 'japanesecartrade',
+    name: 'Japanese Car Trade',
+    country: 'JP',
+    home: 'https://www.japanesecartrade.com/stock_list.php',
+    templates: [],
+    verified: false,
+    currency: 'USD',
+    kind: 'exporter',
+  },
+  { id: 'nichibo', name: 'Nichibo Japan (mezat aracısı)', country: 'JP', home: 'https://autosearch.nichibojapan.com/', templates: [], verified: false, currency: 'USD', kind: 'agent' },
+  {
     // Stok listesi üyelere açık (girişsiz /accounts/login/'e yönlendirir; Eylül 2026'da kontrol edildi).
     // Arama parametreleri üye olmadan görülemediği için tüm stok açılır, marka/model filtresi panelde uygulanır.
     id: 'hasnihon',

@@ -48,7 +48,7 @@ Japonya ve İngiltere'deki ikinci el araç sitelerini tek panelde toplar. İlanl
 
 | Ülke | Otomatik arama | Yalnızca "Sitede aç" + sayfayı topla |
 | --- | --- | --- |
-| 🇯🇵 Japonya | BE FORWARD, SBT Japan, Car From Japan, TCV, Goo-net Exchange, Real Motor Japan, PicknBuy24, CardealPage, Car Junction, SAT Japan, Autorec, Has-Nihon (üyelik gerekli) | Japan Car Direct, CarsJapan Cyprus (mezat aracıları) |
+| 🇯🇵 Japonya | BE FORWARD, SBT Japan, Car From Japan, TCV, Goo-net Exchange, Real Motor Japan, PicknBuy24, CardealPage, Car Junction, SAT Japan, Autorec, TRUST Japan, Has-Nihon (üyelik gerekli) | Japanese Car Trade, Nichibo (mezat aracısı), Japan Car Direct, CarsJapan Cyprus (mezat aracıları) |
 | 🇬🇧 İngiltere | AutoTrader UK, eBay Motors UK, Gumtree, Motors.co.uk (Cazoo), PistonHeads, cinch, Carwow, Exchange & Mart, Copart UK | CarGurus UK, BCA, Manheim, Aston Barclay |
 
 Arama URL'leri *Siteler* sekmesindeki şablonlardan üretilir. Otomatik aranan 20 sitenin marka + model arama adresleri, sitelerin arama motorlarında görünen gerçek sayfa adresleriyle karşılaştırılarak doğrulandı. Yalnızca markayla arama biçimleri Car Junction, Carwow, AutoTrader, SBT ve TCV'de doğrulandı; diğerlerinde aynı yapının kısaltmasıdır. Bir site adres yapısını değiştirirse ve sonuç gelmezse: sitede kendi aramanı yap, adres çubuğundaki URL'yi şablona uyarla.

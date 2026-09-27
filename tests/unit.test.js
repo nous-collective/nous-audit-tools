@@ -39,6 +39,8 @@ test('şablon: doğrulanmış site URL yapıları', () => {
   assert.equal(url('cardealpage', v), 'https://www.cardealpage.com/toyota/prius/');
   assert.equal(url('carjunction', v), 'https://www.carjunction.com/make/toyota/prius.html');
   assert.equal(url('satjapan', v), 'https://satjapan.com/used-cars/mk_toyota/md_prius');
+  assert.equal(url('trust', v), 'https://japanesevehicles.com/stocklist?maker=TOYOTA&model=PRIUS');
+  assert.equal(url('trust', vars({ make: 'Toyota', q: 'Toyota' })), 'https://japanesevehicles.com/stocklist?maker=TOYOTA');
   assert.equal(url('autorec', v), 'https://www.autorec.co.jp/used-cars-list.php?Sort=1&post_maker=TOYOTA');
   assert.equal(url('autotrader', v), 'https://www.autotrader.co.uk/cars/used/toyota/prius');
   assert.equal(url('ebay', v), 'https://www.ebay.co.uk/sch/i.html?_sacat=9801&_nkw=Toyota+Prius');
@@ -433,4 +435,11 @@ test('yol vergisi, posta ve kargo fiyat sayılmaz (eBay/Gumtree canlı)', () => 
   assert.equal(t('Road tax: £0 Price £4,995'), 4995);
   const c = toListing({ url: 'https://www.copart.co.uk/lot/1/x', title: '2011 Toyota Prius', priceTexts: [{ text: '£30' }], text: '' }, { id: 'copart', country: 'UK', kind: 'auction' });
   assert.equal(c.auction, true);
+});
+
+test('indirim rozeti fiyat sayılmaz (cinch canlı)', () => {
+  const t = (text) => pickPrices([...text.matchAll(new RegExp(PRICE_PATTERN, 'gi'))].map((m) => ({ text: m[0], label: text.slice(Math.max(0, m.index - 30), m.index), after: text.slice(m.index + m[0].length, m.index + m[0].length + 20) }))).price?.amount;
+  assert.equal(t('Nissan Qashqai 1.5 dCi £300 off was £8,899 £8,599 £144 /month HP'), 8599);
+  assert.equal(t('£500 cashback £12,995'), 12995);
+  assert.equal(t('Save £1,000 now £9,995'), 9995);
 });

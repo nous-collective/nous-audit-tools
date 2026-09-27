@@ -532,7 +532,9 @@
     diag.jsonLd = ld.length;
     diag.dom = dom.length;
     diag.json = json.length;
-    let items = [...ld, ...dom, ...json];
+    // Sitenin kendi verisi (JSON-LD, gömülü JSON) sayfa metninden önce gelir: birleştirmede
+    // fiyat gibi alanlar yapısal veriden alınır ("£300 off" rozeti fiyat sanılmaz).
+    let items = [...ld, ...json, ...dom];
     // Arama sayfasının kendisini tanımlayan JSON-LD (kategori/ürün özeti) ilan değildir.
     if (items.length > 2) items = items.filter((it) => it.url.split('#')[0] !== url.split('#')[0]);
     return {

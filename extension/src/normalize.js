@@ -75,6 +75,10 @@ export function pickPrices(priceTexts = []) {
     if (/^\s*(\/\s?mo|\/\s?month|per month|p\/m|pm\b|a month|monthly|pcm)/.test(a) || /\b(from|deposit|monthly|per month)\s*$/.test(l)) {
       continue; // taksit / peşinat
     }
+    // İndirim rozeti ("£300 off", "£500 cashback", "save £1,000") araç fiyatı değildir.
+    if (/^\s*(off\b|discount|cashback|saving|reduction|price drop|deposit contribution)/.test(a) || /\b(save|saving|discount|reduced by|price drop)\s*:?\s*$/.test(l)) {
+      continue;
+    }
     // Yol vergisi ("£20 a yr road tax"), posta/kargo ("+£45 postage") araç fiyatı değildir.
     if (/^\s*(a\s?yr|\/\s?yr|a year|per year|per annum|p\/?a\b|pa\b|road tax|tax\b|ved\b|postage|delivery|shipping|collection)/.test(a) || /(road tax|tax|ved|\+|postage|delivery|shipping)\s*:?\s*$/.test(l)) {
       continue;
