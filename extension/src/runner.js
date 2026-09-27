@@ -237,6 +237,13 @@ export function runSearch(jobs, { mode = 'auto', concurrency = 3, settleMs = 250
       if (cancelled) return;
       if (items.length) {
         onUpdate(site.id, { state: 'done', count: items.length, url, items, diag, pages: diag.pages.length, next: pageUrl });
+      } else if (/\/(accounts?\/)?(login|signin|sign-in|log-in)\b/i.test(lastRaw?.url || '')) {
+        onUpdate(site.id, {
+          state: 'login',
+          url: lastRaw.url,
+          diag,
+          message: 'Bu site ilanları yalnızca üyelere gösteriyor. Sitede oturum aç (tıkla), sonra aramayı tekrarla.',
+        });
       } else if (lastRaw?.blocked) {
         onUpdate(site.id, {
           state: 'blocked',

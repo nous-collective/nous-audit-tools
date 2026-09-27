@@ -38,6 +38,7 @@ const STATUS_TEXT = {
   skipped: 'atlandı',
   cancelled: 'durduruldu',
   manual: 'elle aç',
+  login: 'giriş gerekli',
 };
 const FAV_STATUSES = ['İnceleniyor', 'Teklif istendi', 'Pazarlıkta', 'Ödeme yapıldı', 'Yolda', 'Teslim alındı', 'Vazgeçildi'];
 const DEFAULT_FILTERS = {
@@ -281,7 +282,7 @@ async function loadMore() {
 function onUpdate(siteId, st) {
   const { items, diag, next, ...rest } = st;
   state.statuses.set(siteId, rest);
-  if (['done', 'empty', 'blocked', 'error'].includes(st.state)) {
+  if (['done', 'empty', 'blocked', 'error', 'login'].includes(st.state)) {
     state.cursors[siteId] = next || null;
     saveCursors();
   }

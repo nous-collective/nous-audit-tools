@@ -104,7 +104,7 @@ main { padding: 16px 20px 60px; max-width: 1600px; margin: 0 auto; }
 .chip.st-loading .dot { background: var(--warn); animation: pulse 1s infinite; }
 .chip.st-done .dot { background: var(--ok); }
 .chip.st-empty .dot, .chip.st-skipped .dot, .chip.st-cancelled .dot { background: var(--muted); }
-.chip.st-blocked .dot, .chip.st-error .dot { background: var(--bad); }
+.chip.st-blocked .dot, .chip.st-error .dot, .chip.st-login .dot { background: var(--bad); }
 .chip.st-manual { border-style: dashed; background: transparent; }
 .manual-sites { display: inline-block; }
 .manual-sites summary { list-style: none; }

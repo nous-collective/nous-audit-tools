@@ -296,6 +296,7 @@ test('ara sayfa ("Click this link to continue") otomatik izlenir', async () => {
     const { settings } = await chrome.storage.local.get('settings');
     for (const k of Object.keys(settings.siteOverrides)) settings.siteOverrides[k].enabled = false;
     settings.siteOverrides.carjunction = { enabled: true, templates: [`${b}/live-cardeal?m={make}`] };
+    settings.siteOverrides.hasnihon = { enabled: true, templates: [`${b}/members-only`] };
     await chrome.storage.local.set({ settings });
   }, srv.base);
   await p.reload();
@@ -305,6 +306,7 @@ test('ara sayfa ("Click this link to continue") otomatik izlenir', async () => {
   await p.waitForFunction(() => document.querySelector('#search-btn').textContent === 'Tüm sitelerde ara' && !document.querySelector('#search-btn').disabled, null, { timeout: 60000 });
   const chip = await p.textContent('#site-status .chip.st-done');
   assert.match(chip, /Car Junction: 6 ilan/);
+  assert.match(await p.textContent('#site-status .chip.st-login'), /Has-Nihon: giriş gerekli/);
   assert.equal(await cards(), 6);
 });
 

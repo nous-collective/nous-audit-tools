@@ -130,6 +130,19 @@ export const SITES = [
     currency: 'USD',
     kind: 'exporter',
   },
+  {
+    // Stok listesi üyelere açık (girişsiz /accounts/login/'e yönlendirir; Eylül 2026'da kontrol edildi).
+    // Arama parametreleri üye olmadan görülemediği için tüm stok açılır, marka/model filtresi panelde uygulanır.
+    id: 'hasnihon',
+    name: 'Has-Nihon',
+    country: 'JP',
+    home: 'https://www.hasnihon.com/',
+    templates: ['https://www.hasnihon.com/used_vehicles/'],
+    verified: false,
+    currency: 'USD',
+    kind: 'exporter',
+    login: true,
+  },
   { id: 'japancardirect', name: 'Japan Car Direct (mezat aracısı)', country: 'JP', home: 'https://www.japancardirect.com/', templates: [], verified: false, currency: 'USD', kind: 'agent' },
   { id: 'carsjapancy', name: 'CarsJapan Cyprus (mezat aracısı)', country: 'JP', home: 'https://carsjapan.cy/', templates: [], verified: false, currency: 'EUR', kind: 'agent' },
 

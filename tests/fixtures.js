@@ -256,6 +256,15 @@ export const ROUTES = {
 export function startServer() {
   const server = http.createServer((req, res) => {
     const path = new URL(req.url, 'http://x').pathname;
+    // Üyelere özel sayfa: giriş sayfasına yönlendirir (Has-Nihon gibi).
+    if (path === '/members-only') {
+      res.writeHead(302, { location: '/accounts/login/?next=/members-only' });
+      return res.end();
+    }
+    if (path === '/accounts/login/') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      return res.end(layout('Login', '<form><input name="username"><input name="password" type="password"><button>Login</button></form>'));
+    }
     const route = ROUTES[path];
     if (route) {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
