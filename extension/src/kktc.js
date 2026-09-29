@@ -43,6 +43,25 @@ export function landedCost(listing, settings, convert) {
 
 export function inquiryMessage(listing, contact = {}) {
   const sign = [contact.name, contact.email, contact.phone].filter(Boolean).join('\n');
+  if (listing.auction && listing.auctionInfo) {
+    // Mezat lotu: mezat aracısına teklif verme talebi.
+    const a = listing.auctionInfo;
+    return [
+      'Hello,',
+      '',
+      'I would like you to bid on my behalf for this auction lot:',
+      listing.title,
+      [a.house, a.lot && `Lot ${a.lot}`, a.date].filter(Boolean).join(', '),
+      listing.url,
+      '',
+      'Before bidding, please send me the auction sheet (translated), grade, and the first registration date (year/month).',
+      'My maximum bid: ______ JPY. The car will be shipped to Famagusta (Gazimağusa), Northern Cyprus.',
+      'Please include your service fee, inland transport, export and shipping (CIF Famagusta) costs.',
+      '',
+      'Thank you,',
+      sign,
+    ].join('\n');
+  }
   if (listing.country === 'UK') {
     return [
       'Hello,',

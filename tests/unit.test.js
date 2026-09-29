@@ -479,3 +479,11 @@ test('sipariş bilgisi: etiket ve JSON anahtarı eşleştirme, tarih biçimleri'
   assert.deepEqual(r.fields, { eta: '2026-11-03', vessel: 'MORNING CHERRY', pod: 'FAMAGUSTA' });
   assert.equal(daysUntil('2026-11-03', new Date(2026, 9, 27)), 7);
 });
+
+test('mezat teklif mesajı', () => {
+  const m = inquiryMessage({ title: 'TOYOTA PRIUS, S', url: 'https://banzai24.com/en/car/JP/x', auction: true, auctionInfo: { house: 'TAA Kinki', lot: '4006', date: '2026-09-29 10:00' } }, { name: 'Ali' });
+  assert.match(m, /bid on my behalf/);
+  assert.match(m, /TAA Kinki, Lot 4006, 2026-09-29 10:00/);
+  assert.match(m, /auction sheet/);
+  assert.match(m, /Famagusta/);
+});

@@ -28,7 +28,7 @@ const CURRENCY_CODES = {
 
 // Fiyat kalıbı. scraper.js'teki PRICE_SRC ile aynı olmalı (testte kontrol edilir).
 export const PRICE_PATTERN =
-  "(US\\s?\\$|USD|JP¥|\\$|£|GBP|¥|￥|JPY|€|EUR|₺|TRY|TL)\\s?(\\d{1,3}(?:[,.\\u00a0\\u202f']\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)(\\s?万)?|(\\d{1,3}(?:[,.\\u00a0\\u202f']\\d{3})+|\\d+(?:\\.\\d+)?)\\s?(万円|円|JPY|USD|GBP|EUR|€|₺|TRY|TL)(?![A-Za-z\\d])";
+  "(US\\s?\\$|USD|JP¥|\\$|£|GBP|¥|￥|JPY|€|EUR|₺|TRY|TL)\\s?((?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?(?!\\d)|\\d{1,3}(?:\\.\\d{3})+(?!\\d)|\\d{1,3}(?:[   ]\\d{3})+(?![\\d.,])|\\d{1,3}(?:'\\d{3})+(?!\\d)|\\d+(?:\\.\\d+)?))(\\s?万)?|(?<![\\d.,])((?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?(?!\\d)|\\d{1,3}(?:\\.\\d{3})+(?!\\d)|\\d{1,3}(?:[   ]\\d{3})+(?![\\d.,])|\\d{1,3}(?:'\\d{3})+(?!\\d)|\\d+(?:\\.\\d+)?))\\s?(万円|円|¥|￥|JPY|USD|GBP|EUR|€|₺|TRY|TL)(?![A-Za-z\\d])";
 
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
@@ -126,7 +126,8 @@ export function parseMileageKm(text, defaultUnit = 'km') {
     return /^km/i.test(k[2]) ? v : Math.round(v * 1.609344);
   }
   // Binlik ayırıcı yalnızca , veya . : "-$30 118,000 km" içindeki boşluk sayıyı birleştirmesin.
-  const m = text.match(/\b(\d{1,3}(?:[,.]\d{3})+|\d+)\s?\(?\s?(km|kms|kilometers|kilometres|miles|mile|mi)\b/i);
+  // Binlik ayırıcı tutarlı olmalı: "136 000 km", "118,000 km"; "-$30 118,000 km" içindeki 30 sayıya karışmaz.
+  const m = text.match(/(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)\s?\(?\s?(km|kms|kilometers|kilometres|miles|mile|mi)\b/i);
   if (!m) {
     // Birimsiz "Mileage: 66600" (birim sitenin ülkesine göre varsayılır).
     const bare = text.match(/\b(?:mileage|odometer)\s*:?\s*(\d{1,3}(?:[,.]\d{3})+|\d{2,7})(?![\d.,]*\s?(?:km|mi))/i);
@@ -134,7 +135,7 @@ export function parseMileageKm(text, defaultUnit = 'km') {
     const v = Number(bare[1].replace(/[,.]/g, ''));
     return defaultUnit === 'mi' ? Math.round(v * 1.609344) : v;
   }
-  const v = Number(m[1].replace(/[,.]/g, ''));
+  const v = Number(m[1].replace(/[,.\s\u00a0]/g, ''));
   if (!Number.isFinite(v)) return null;
   return /^k/i.test(m[2]) ? v : Math.round(v * 1.609344);
 }
@@ -315,6 +316,35 @@ function cleanText(s, max = 200) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
 }
 
+// Mezat lotu bilgileri (genel etiketlerden): lot no, mezat evi, tarih/saat, puan, başlangıç/son fiyat, durum.
+export function parseAuction(text, priceTexts = []) {
+  const t = text || '';
+  const info = {};
+  const lot = t.match(/\blot\s*(?:no\.?|#)?\s*[:：]?\s*(\d{1,7})(?:\s*,\s*([^,]{3,40}?)\s*,)?/i);
+  if (lot) {
+    info.lot = lot[1];
+    if (lot[2]) info.house = lot[2].trim();
+  }
+  const when = t.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})\s+(\d{1,2}:\d{2})/) || t.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})\s+(\d{1,2}:\d{2})/);
+  if (when) {
+    const iso = when[1].length === 4 ? `${when[1]}-${String(when[2]).padStart(2, '0')}-${String(when[3]).padStart(2, '0')}` : `${when[3]}-${String(when[2]).padStart(2, '0')}-${String(when[1]).padStart(2, '0')}`;
+    info.date = `${iso} ${when[4]}`;
+  }
+  const grade = t.match(/(?:\b(?:grade|rating|score|puan)\s*[:：]?\s*([0-9](?:\.5)?|R|RA|S|X)\b)|(?:\b([0-9](?:\.5)?|R|RA|S)\s+(?:rating|grade)\b)/i);
+  if (grade) info.grade = (grade[1] || grade[2]).toUpperCase();
+  for (const { text: pt, label = '' } of priceTexts || []) {
+    const p = parsePrice(pt);
+    if (!p) continue;
+    if (/(start|starting|başlangıç|старт)/i.test(label) && !info.start) info.start = p;
+    else if (/(final|sold for|hammer|winning|son fiyat|конечн)/i.test(label) && !info.final) info.final = p;
+    else if (/(fixed price|one price|buy now|sabit fiyat)/i.test(label) && !info.fixed) info.fixed = p;
+  }
+  if (info.final && !(info.final.amount > 0)) delete info.final;
+  const status = t.match(/\b(not sold|unsold|for sale|sold|awaiting auction|awaiting|upcoming|negotiat\w*)\b/i);
+  if (status) info.status = status[1].toLowerCase();
+  return Object.keys(info).length ? info : undefined;
+}
+
 // raw: scraper.js çıktısındaki bir öğe. site: sites.js kaydı (yoksa null).
 export function toListing(raw, site, pageUrl) {
   const url = cleanUrl(raw.url);
@@ -345,7 +375,9 @@ export function toListing(raw, site, pageUrl) {
   } else {
     // Başlıktaki yıl önceliklidir; ay yalnızca metinde yazıyorsa oradan alınır.
     const a = parseYearMonth(title);
-    const b = parseYearMonth(text);
+    // Etiketli yıl ("Year : 2019.01", "Registration: 2019/1") mezat/ilan tarihinden önce gelir.
+    const labeled = text.match(/\b(?:year|model year|reg(?:istration)?(?: year| date)?|first registration|初度登録|年式)\s*[:：]?\s*((?:19|20)\d\d(?:\s*[/.\-年]\s*\d{1,2})?)/i);
+    const b = labeled ? parseYearMonth(labeled[1]) : parseYearMonth(text);
     ym = a.year ? { year: a.year, month: a.month ?? (b.year === a.year ? b.month : null) } : b;
     if (!ym.year && e.year) ym = { year: e.year, month: null };
   }
@@ -360,6 +392,22 @@ export function toListing(raw, site, pageUrl) {
     host = new URL(pageUrl || url).hostname.replace(/^www\./, '');
   } catch {}
 
+  // Mezat lotu: satıldıysa son fiyat, değilse başlangıç fiyatı (Copart: güncel teklif).
+  const auctionInfo = site?.kind === 'auction' ? parseAuction(text, raw.priceTexts) : undefined;
+  let priceKind;
+  if (site?.kind === 'auction') {
+    if (auctionInfo?.fixed) {
+      price = auctionInfo.fixed;
+      priceKind = 'fixed';
+    } else if (auctionInfo?.final) {
+      price = auctionInfo.final;
+      priceKind = 'final';
+    } else {
+      if (auctionInfo?.start) price = auctionInfo.start;
+      priceKind = site.id === 'copart' ? 'bid' : 'start';
+    }
+  }
+
   return {
     id: listingKey(url),
     url,
@@ -367,6 +415,8 @@ export function toListing(raw, site, pageUrl) {
     siteName: site?.name || host,
     country: site?.country || null,
     auction: site?.kind === 'auction' || undefined,
+    auctionInfo,
+    priceKind,
     title,
     image: raw.image && /^https?:/i.test(raw.image) ? raw.image : null,
     price: price?.amount ?? null,

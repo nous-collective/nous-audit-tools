@@ -45,7 +45,7 @@ const STATUS_TEXT = {
 const FAV_STATUSES = ['İnceleniyor', 'Teklif istendi', 'Pazarlıkta', 'Ödeme yapıldı', 'Yolda', 'Teslim alındı', 'Vazgeçildi'];
 const DEFAULT_FILTERS = {
   text: '', country: 'all', yearMin: '', yearMax: '', priceMin: '', priceMax: '', kmMax: '',
-  fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false, onlyMatching: true,
+  fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false, onlyMatching: true, saleType: 'all',
 };
 // Tüm sitelerin ilanları tek listede, sayfa sayfa (1, 2, 3…) gösterilir.
 const DEFAULT_PAGE_SIZE = 50;
@@ -168,7 +168,8 @@ async function startSearch(e) {
   const jobs = [];
   state.statuses = new Map();
   state.diagnostics = {};
-  for (const site of state.sites.filter((s) => s.enabled && s.templates.length && inCountry(s))) {
+  const withAuctions = $('#search-form').elements.auctions?.checked !== false;
+  for (const site of state.sites.filter((s) => s.enabled && s.templates.length && inCountry(s) && (withAuctions || s.kind !== 'auction'))) {
     const sv = searchVars(vars, site, convert);
     let url = null;
     try {
@@ -361,6 +362,8 @@ function filteredResults() {
   const out = state.results.filter((l) => {
     if (f.onlyMatching && state.query && !matchesQuery(l, state.query)) return false;
     if (f.country !== 'all' && l.country !== f.country) return false;
+    if (f.saleType === 'fixed' && l.auction) return false;
+    if (f.saleType === 'auction' && !l.auction) return false;
     if (state.excludedSites.has(l.siteId)) return false;
     if (words.length) {
       const t = `${l.title} ${l.summary || ''}`.toLocaleLowerCase('tr');
@@ -429,6 +432,26 @@ function renderSiteFilter() {
 }
 
 // ---------- ilan kartları ----------
+const AUCTION_PRICE_LABEL = {
+  final: 'Mezat son fiyatı (satıldı)',
+  start: 'Mezat başlangıç fiyatı, son fiyat değil',
+  bid: 'Mezat: güncel teklif, son fiyat değil',
+  fixed: 'Mezat evi sabit fiyatı (aracı ile alınır)',
+};
+const AUCTION_STATUS = { 'for sale': 'satışta', sold: 'satıldı', 'not sold': 'satılmadı', unsold: 'satılmadı', awaiting: 'mezat bekleniyor', 'awaiting auction': 'mezat bekleniyor', upcoming: 'mezat bekleniyor' };
+function auctionLine(a) {
+  return [
+    a.house,
+    a.lot && `Lot ${a.lot}`,
+    a.date && new Date(a.date.replace(' ', 'T')).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }),
+    a.grade && `Puan ${a.grade}`,
+    a.start && a.final ? `başlangıç ${formatMoney(a.start.amount, a.start.currency)}` : null,
+    AUCTION_STATUS[a.status] || a.status,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 // Satın alınan araçta gerçek ilk tescil tarihi ve ETA varsa yaş kontrolü onlarla yapılır.
 function ageFor(l, order) {
   const f = order?.fields || {};
@@ -469,7 +492,8 @@ function priceBlock(l) {
     formatMoney(l.price, l.currency),
     l.currency !== cur() && conv != null ? h('small', null, `≈ ${formatMoney(conv, cur())}`) : null,
     l.priceTotal != null ? h('small', null, `Toplam/CIF: ${formatMoney(l.priceTotal, l.priceTotalCurrency)}`) : null,
-    l.auction ? h('small', null, 'Mezat: güncel teklif, son fiyat değil') : null,
+    l.auction ? h('small', { class: 'auction-note' }, AUCTION_PRICE_LABEL[l.priceKind] || 'Mezat fiyatı') : null,
+    l.auctionInfo ? h('small', null, auctionLine(l.auctionInfo)) : null,
   );
 }
 
@@ -694,6 +718,7 @@ function orderBlock(fav) {
       'div',
       { class: 'btns' },
       f.vessel ? h('a', { href: vesselTrackUrl(f.vessel), target: '_blank', rel: 'noopener noreferrer' }, 'Gemiyi izle ↗') : null,
+      f.chassis ? h('a', { href: 'https://www.ajes.com/', target: '_blank', rel: 'noopener noreferrer', title: `Şasi no: ${f.chassis} (AJES'te arayarak mezat geçmişini ve puanını gör)` }, 'Şasi geçmişi (AJES) ↗') : null,
       o.sourceUrl ? h('a', { href: o.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Sipariş sayfası ↗') : null,
       o.sourceUrl ? h('button', { type: 'button', onclick: () => refreshOrder(fav, true) }, 'Yeniden tara') : null,
     ),
@@ -1080,8 +1105,10 @@ async function init() {
   if (lastSearch) {
     for (const [k, v] of Object.entries(lastSearch)) {
       const el = $('#search-form').elements[k];
-      if (el) el.value = v;
+      if (el && el.type !== 'checkbox') el.value = v;
     }
+    // İşaretsiz kutular FormData'da yer almaz.
+    $('#search-form').elements.auctions.checked = lastSearch.auctions === 'on' || !('make' in lastSearch);
   }
 
   // Olaylar

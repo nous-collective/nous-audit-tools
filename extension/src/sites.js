@@ -170,6 +170,30 @@ export const SITES = [
     kind: 'exporter',
     login: true,
   },
+  {
+    // Japonya araç mezatları (USS, TAA, CAA, JU, Honda AA…) tek arama; Eylül 2026'da canlı doğrulandı.
+    // Fiyat mezat başlangıç fiyatıdır; teklif bir aracı üzerinden verilir.
+    id: 'banzai24',
+    name: 'Banzai24 (Japonya mezatları)',
+    country: 'JP',
+    home: 'https://banzai24.com/en',
+    templates: ['https://banzai24.com/en/{make|upper|enc}[/{model|upper|enc}]?source=auctions&countryISO=JP'],
+    verified: true,
+    currency: 'JPY',
+    kind: 'auction',
+  },
+  {
+    // Mezat evlerinin sabit fiyatlı stokları (mezat beklemeden, aracı üzerinden alınır). Canlı doğrulandı.
+    id: 'banzai24op',
+    name: 'Banzai24 One Price (mezat evi sabit fiyat)',
+    country: 'JP',
+    home: 'https://banzai24.com/en?source=onePrice',
+    templates: ['https://banzai24.com/en/{make|upper|enc}[/{model|upper|enc}]?source=onePrice&countryISO=JP'],
+    verified: true,
+    currency: 'JPY',
+    kind: 'auction',
+  },
+  { id: 'aleado', name: 'Aleado (Japon mezat erişimi)', country: 'JP', home: 'https://aleado.com/', templates: [], verified: false, currency: 'JPY', kind: 'auction', login: true },
   { id: 'japancardirect', name: 'Japan Car Direct (mezat aracısı)', country: 'JP', home: 'https://www.japancardirect.com/', templates: [], verified: false, currency: 'USD', kind: 'agent' },
   { id: 'carsjapancy', name: 'CarsJapan Cyprus (mezat aracısı)', country: 'JP', home: 'https://carsjapan.cy/', templates: [], verified: false, currency: 'EUR', kind: 'agent' },
 

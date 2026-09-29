@@ -53,6 +53,7 @@
               <option value="UK">İngiltere</option>
             </select>
           </label>
+          <label class="short check-inline"><input name="auctions" type="checkbox" checked /> Mezatları da ara</label>
           <div class="search-actions">
             <button type="submit" class="primary" id="search-btn">Tüm sitelerde ara</button>
             <button type="button" id="stop-btn" hidden>Durdur</button>
@@ -82,6 +83,13 @@
               <label><span>Fiyat ≤ <span class="cur-label"></span></span><input data-f="priceMax" type="number" step="any" /></label>
             </div>
             <label>Maks. km<input data-f="kmMax" type="number" step="any" /></label>
+            <label>Satış türü
+              <select data-f="saleType">
+                <option value="all">Hepsi</option>
+                <option value="fixed">Sabit fiyatlı ilanlar</option>
+                <option value="auction">Mezat (açık artırma) lotları</option>
+              </select>
+            </label>
             <label>Yakıt
               <select data-f="fuel">
                 <option value="">Tümü</option>

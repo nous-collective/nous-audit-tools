@@ -273,6 +273,22 @@ export function orderText() {
   return layout('Order', `<pre>Vessel: ${ORDER.vessel}\nETD: 12/10/2026\nETA: 03/11/2026\nB/L No: ${ORDER.bl}\nChassis No: ${ORDER.chassis}</pre>`);
 }
 
+// Banzai24 benzeri mezat lot kartları (Nuxt, Eylül 2026 canlı yapı): başlık div alt'ında,
+// fiyat "70 000 ¥", yıl "Year : 2012.03", km "230 000 km", mezat tarihi yıl sanılmamalı.
+export function liveBanzai() {
+  const lots = [
+    { lot: 4008, house: 'TAA Hiroshima', grade: '3.5', year: '2012.03', km: '230 000', start: '70 000', final: '145 000', st: 'Sold' },
+    { lot: 4006, house: 'TAA Kinki', grade: '4', year: '2011.03', km: '158 000', start: '100 000', final: '0', st: 'Not sold' },
+    { lot: 9004, house: 'TAA Shikoku', grade: 'R', year: '2011.07', km: '20 000', start: '1 000', final: '139 000', st: 'Sold' },
+  ];
+  const cards = lots.map((x, i) => `<div class="card card_shadow"><a href="/en/car/JP/01a0cf10-3a3d-7b51-993b-11${i}0ff02c0ab3" class="card__photo-container"><div class="base-photo" alt="TOYOTA PRIUS, S"><img src="/api/image-service/v2_${i}" width="300"></div></a>
+    <div class="card__info">There are 4 more photos available You can view all photos of the car with the premium plan Log in
+    <a href="/en/car/JP/01a0cf10-3a3d-7b51-993b-11${i}0ff02c0ab3" class="card__title-link"><span class="card__price-title">${x.start} ¥</span></a>
+    <p>TOYOTA PRIUS, S</p><p>Japan</p><p>Lot ${x.lot}, ${x.house}, 29.09.2026 10:00</p><p>${x.grade} Rating</p><p>First time at auction</p>
+    <p>Year : ${x.year}</p><p>Mileage : ${x.km} km</p><p>Gearbox : Automatic</p><p>Start price: ${x.start} ¥</p><p>Final price: ${x.final} ¥</p><p>${x.st}</p></div></div>`).join('');
+  return layout('Banzai24', `<div class="cards-block">${cards}</div>`);
+}
+
 export const ROUTES = {
   '/jp-grid': jpGrid,
   '/uk-cards': ukCards,
@@ -301,6 +317,7 @@ export const ROUTES = {
   '/order-state': orderInlineState,
   '/order-ja': orderJapanese,
   '/order-text': orderText,
+  '/live-banzai': liveBanzai,
 };
 
 export function startServer() {

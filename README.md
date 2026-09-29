@@ -36,6 +36,27 @@ Japonya ve İngiltere'deki ikinci el araç sitelerini tek panelde toplar. İlanl
   - İngiliz satıcılar için V5C, MOT ve ihracata teslim bilgisi ister.
 - **Satın alma:** Ödeme, sözleşme ve mezat teklifi güvenlik gereği her sitenin kendi sayfasında yapılır. *Sitede satın al ↗* ilanı açar; eklenti ödeme yapmaz ve kart bilgisi istemez.
 
+### Mezat (açık artırma)
+
+*Mezatları da ara* işaretliyse (varsayılan) şu kaynaklar da aranır:
+
+- **Banzai24:** Japonya'daki araç mezatları (USS, TAA, CAA, JU, Honda AA…).
+- **Banzai24 One Price:** mezat evlerinin sabit fiyatlı stokları.
+- **Copart UK.**
+
+Mezat lotlarında fiyatın ne olduğu kartta açıkça yazar:
+
+- **Mezat son fiyatı (satıldı):** Lot satılmış, gerçekleşen fiyat.
+- **Başlangıç fiyatı, son fiyat değil:** Mezat henüz yapılmadı ya da lot satılmadı.
+- **Güncel teklif (Copart):** Mezat devam ediyor.
+- **Mezat evi sabit fiyatı:** One Price stoku.
+
+Kartta ayrıca mezat evi, lot no, mezat tarihi/saati, puan (grade) ve durum yer alır. *Satış türü* filtresiyle yalnızca sabit fiyatlı ilanları ya da yalnızca mezat lotlarını görebilirsin.
+
+Mezattan araç almak için teklifi bir mezat aracısı verir. ✉ düğmesi mezat lotunda aracıya teklif talebi hazırlar: lot bilgisi, çevirili auction sheet isteği, azami teklif ve CIF Gazimağusa maliyeti.
+
+Banzai24 bir aramada ilk 20 lotu verir; sayfalamayı site sayfa içinde yapıyor. Fazlası için sitede aşağı kaydırıp eklenti simgesinden *Bu sayfadaki ilanları topla*'yı kullan. Aleado, BCA, Manheim ve Aston Barclay üyelik istediği için "elle aç" grubunda.
+
 ### Satın aldığın aracı takip etme (gemi, yükleme ve varış tarihi)
 
 1. Satıcının sitesinde siparişinin sayfasını aç (ör. "My Page", "Order", "Shipment").
@@ -70,7 +91,7 @@ JavaScript ile çizilen sayfalar gerçek sekmede okunur. Etiketler ve JSON anaht
 
 | Ülke | Otomatik arama | Yalnızca "Sitede aç" + sayfayı topla |
 | --- | --- | --- |
-| 🇯🇵 Japonya | BE FORWARD, SBT Japan, Car From Japan, TCV, Goo-net Exchange, Real Motor Japan, PicknBuy24, CardealPage, Car Junction, SAT Japan, Autorec, TRUST Japan, Has-Nihon (üyelik gerekli) | Japanese Car Trade, Nichibo (mezat aracısı), Japan Car Direct, CarsJapan Cyprus (mezat aracıları) |
+| 🇯🇵 Japonya | BE FORWARD, SBT Japan, Car From Japan, TCV, Goo-net Exchange, Real Motor Japan, PicknBuy24, CardealPage, Car Junction, SAT Japan, Autorec, TRUST Japan, Has-Nihon (üyelik gerekli), Banzai24 mezatları, Banzai24 One Price | Japanese Car Trade, Nichibo (mezat aracısı), Aleado, Japan Car Direct, CarsJapan Cyprus (mezat aracıları) |
 | 🇬🇧 İngiltere | AutoTrader UK, eBay Motors UK, Gumtree, Motors.co.uk (Cazoo), PistonHeads, cinch, Carwow, Exchange & Mart, Copart UK | CarGurus UK, BCA, Manheim, Aston Barclay |
 
 Arama URL'leri *Siteler* sekmesindeki şablonlardan üretilir. Otomatik aranan 20 sitenin marka + model arama adresleri, sitelerin arama motorlarında görünen gerçek sayfa adresleriyle karşılaştırılarak doğrulandı. Yalnızca markayla arama biçimleri Car Junction, Carwow, AutoTrader, SBT ve TCV'de doğrulandı; diğerlerinde aynı yapının kısaltmasıdır. Bir site adres yapısını değiştirirse ve sonuç gelmezse: sitede kendi aramanı yap, adres çubuğundaki URL'yi şablona uyarla.

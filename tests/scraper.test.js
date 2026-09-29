@@ -267,3 +267,21 @@ for (const [path, wait, name] of [
     if (!['/order-state'].includes(path)) assert.equal(f.chassis, 'ZVW50-8012345');
   });
 }
+
+test('Canlı yapı: Banzai24 mezat lotları (boşluklu ¥ fiyat, etiketli yıl, mezat bilgisi)', async () => {
+  const raw = await scrape('/live-banzai');
+  const site = { id: 'banzai24', name: 'Banzai24', country: 'JP', currency: 'JPY', kind: 'auction' };
+  const items = toListings(raw.items, site, raw.url);
+  assert.equal(items.length, 3);
+  const [a, b, c] = ['110', '111', '112'].map((k) => items.find((x) => x.url.includes(`-${k}0ff02c0ab3`)));
+  assert.equal(a.title, 'TOYOTA PRIUS, S');
+  assert.deepEqual([a.year, a.month, a.km], [2012, 3, 230000], 'mezat tarihi (2026) yıl sayılmaz');
+  assert.equal(a.price, 145000, 'satıldıysa son fiyat');
+  assert.equal(a.priceKind, 'final');
+  assert.deepEqual(a.auctionInfo, { lot: '4008', house: 'TAA Hiroshima', date: '2026-09-29 10:00', grade: '3.5', start: { amount: 70000, currency: 'JPY' }, final: { amount: 145000, currency: 'JPY' }, status: 'sold' });
+  assert.equal(b.price, 100000, 'satılmadıysa başlangıç fiyatı');
+  assert.equal(b.priceKind, 'start');
+  assert.equal(b.auctionInfo.status, 'not sold');
+  assert.equal(c.auctionInfo.grade, 'R');
+  assert.equal(c.price, 139000);
+});

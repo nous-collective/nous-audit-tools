@@ -10,7 +10,7 @@
 
   // normalize.js'teki PRICE_PATTERN ile aynı olmalı (testte kontrol edilir).
   const PRICE_SRC =
-    "(US\\s?\\$|USD|JP¥|\\$|£|GBP|¥|￥|JPY|€|EUR|₺|TRY|TL)\\s?(\\d{1,3}(?:[,.\\u00a0\\u202f']\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)(\\s?万)?|(\\d{1,3}(?:[,.\\u00a0\\u202f']\\d{3})+|\\d+(?:\\.\\d+)?)\\s?(万円|円|JPY|USD|GBP|EUR|€|₺|TRY|TL)(?![A-Za-z\\d])";
+    "(US\\s?\\$|USD|JP¥|\\$|£|GBP|¥|￥|JPY|€|EUR|₺|TRY|TL)\\s?((?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?(?!\\d)|\\d{1,3}(?:\\.\\d{3})+(?!\\d)|\\d{1,3}(?:[   ]\\d{3})+(?![\\d.,])|\\d{1,3}(?:'\\d{3})+(?!\\d)|\\d+(?:\\.\\d+)?))(\\s?万)?|(?<![\\d.,])((?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?(?!\\d)|\\d{1,3}(?:\\.\\d{3})+(?!\\d)|\\d{1,3}(?:[   ]\\d{3})+(?![\\d.,])|\\d{1,3}(?:'\\d{3})+(?!\\d)|\\d+(?:\\.\\d+)?))\\s?(万円|円|¥|￥|JPY|USD|GBP|EUR|€|₺|TRY|TL)(?![A-Za-z\\d])";
   const KM_RE = /\d\s?\(?\s?(km|kms|miles|mi)\b|\b(mileage|odometer)\s*:?\s*\d/i;
   const YEAR_RE = /\b(19[89]\d|20[0-4]\d)\b/;
   const VEHICLE_RE =
@@ -153,13 +153,20 @@
   function titleOf(ctx, el, link) {
     // Önce gerçek başlık etiketleri, sonra "title/name" sınıflı öğeler.
     const h = el.querySelector('h1,h2,h3,h4,h5,h6');
-    const named = el.querySelector('[class*="title" i],[class*="heading" i],[class*="name" i]');
-    const cands = [h && textOf(ctx, h), named && textOf(ctx, named), link?.title, ...(link?.texts || []), el.querySelector('img[alt]')?.getAttribute('alt')];
-    for (const c of cands) {
-      const t = norm(c);
-      if (t.length >= 4 && t.length <= 200 && !/^(view|details|more|see more|more info|view details)$/i.test(t)) return t;
-    }
-    return null;
+    // "title/name" sınıflı öğelerden fiyat ya da yalnızca sayı olmayan ilki ("price-title" gibi sınıflar var).
+    const named = [...el.querySelectorAll('[class*="title" i],[class*="heading" i],[class*="name" i]')]
+      .map((n) => textOf(ctx, n))
+      .find((t) => t && /\p{L}{2}/u.test(t) && !new RegExp(PRICE_SRC, 'i').test(t));
+    const cands = [h && textOf(ctx, h), named, link?.title, ...(link?.texts || []), el.querySelector('img[alt]')?.getAttribute('alt'), el.querySelector('[alt]')?.getAttribute('alt')];
+    const ok = cands
+      .map((c) => norm(c))
+      .filter((t) => {
+        // Fiyattan ibaret metin ("70 000 ¥") başlık değildir.
+        const rest = t.replace(new RegExp(PRICE_SRC, 'gi'), '').replace(/[^\p{L}]/gu, '');
+        return t.length >= 4 && t.length <= 200 && rest.length >= 3 && !/^(view|details|more|see more|more info|view details)$/i.test(t);
+      });
+    // Marka/araç kelimesi içeren kısa aday öne ("There are 4 more photos…" gibi metinler yerine).
+    return ok.find((t) => t.length <= 90 && VEHICLE_RE.test(t)) || ok[0] || null;
   }
 
   // ---------- 1) JSON-LD ----------
