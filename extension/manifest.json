@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "KKTC Araç Toplayıcı",
+  "short_name": "KKTC Araç",
+  "version": "1.8.1",
+  "description": "Japonya ve İngiltere araç sitelerindeki ilanları tek panelde toplar, filtreler ve KKTC ithalatı için değerlendirir.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "KKTC Araç Toplayıcı",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.beforward.jp/*",
+    "*://*.sbtjapan.com/*",
+    "*://*.carfromjapan.com/*",
+    "*://*.tc-v.com/*",
+    "*://*.goo-net-exchange.com/*",
+    "*://*.realmotor.jp/*",
+    "*://*.picknbuy24.com/*",
+    "*://*.cardealpage.com/*",
+    "*://*.carjunction.com/*",
+    "*://*.satjapan.com/*",
+    "*://*.autorec.co.jp/*",
+    "*://*.japanesevehicles.com/*",
+    "*://*.japanesecartrade.com/*",
+    "*://*.nichibojapan.com/*",
+    "*://*.hasnihon.com/*",
+    "*://*.banzai24.com/*",
+    "*://*.aleado.com/*",
+    "*://*.japancardirect.com/*",
+    "*://*.carsjapan.cy/*",
+    "*://*.autotrader.co.uk/*",
+    "*://*.ebay.co.uk/*",
+    "*://*.gumtree.com/*",
+    "*://*.cazoo.co.uk/*",
+    "*://*.pistonheads.com/*",
+    "*://*.cinch.co.uk/*",
+    "*://*.carwow.co.uk/*",
+    "*://*.exchangeandmart.co.uk/*",
+    "*://*.copart.co.uk/*",
+    "*://*.cargurus.co.uk/*",
+    "*://*.bca.co.uk/*",
+    "*://*.manheim.co.uk/*",
+    "*://*.astonbarclay.net/*",
+    "https://open.er-api.com/*",
+    "https://api.frankfurter.dev/*"
+  ],
+  "minimum_chrome_version": "116"
+}

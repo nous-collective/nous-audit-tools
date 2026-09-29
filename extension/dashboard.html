@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KKTC Araç Toplayıcı</title>
+    <link rel="icon" href="icons/icon32.png" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><img src="icons/icon32.png" alt="" /> KKTC Araç Toplayıcı</div>
+      <nav class="tabs" role="tablist">
+        <button type="button" data-tab="results" class="active">Arama &amp; Sonuçlar</button>
+        <button type="button" data-tab="favorites">Takip Listesi <span id="fav-count" class="pill">0</span></button>
+        <button type="button" data-tab="sites">Siteler</button>
+        <button type="button" data-tab="settings">Ayarlar</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ARAMA & SONUÇLAR -->
+      <section id="tab-results" class="tab active">
+        <form id="search-form" class="panel search" autocomplete="off">
+          <label>Marka
+            <input name="make" list="makes" placeholder="Toyota" />
+          </label>
+          <label>Model
+            <input name="model" placeholder="Prius" />
+          </label>
+          <label>Anahtar kelime
+            <input name="keyword" placeholder="hybrid, 4wd…" />
+          </label>
+          <label class="short">Yıl (en az)
+            <input name="yearFrom" type="number" min="1980" max="2100" />
+          </label>
+          <label class="short">Yıl (en çok)
+            <input name="yearTo" type="number" min="1980" max="2100" />
+          </label>
+          <label class="short"><span>Maks. fiyat <span class="cur-label"></span></span>
+            <input name="priceMax" type="number" min="0" step="any" />
+          </label>
+          <label class="short">Maks. km
+            <input name="kmMax" type="number" min="0" step="any" />
+          </label>
+          <label class="short">Siteden ilan
+            <input name="perSite" type="number" min="1" max="500" step="1" placeholder="50" />
+          </label>
+          <label class="short">Ülke
+            <select name="country">
+              <option value="all">Tümü</option>
+              <option value="JP">Japonya</option>
+              <option value="UK">İngiltere</option>
+            </select>
+          </label>
+          <label class="short check-inline"><input name="auctions" type="checkbox" checked /> Mezatları da ara</label>
+          <div class="search-actions">
+            <button type="submit" class="primary" id="search-btn">Tüm sitelerde ara</button>
+            <button type="button" id="stop-btn" hidden>Durdur</button>
+          </div>
+          <datalist id="makes"></datalist>
+        </form>
+
+        <div id="site-status" class="site-status" aria-live="polite"></div>
+
+        <div class="results-layout">
+          <aside class="panel filters" id="filters">
+            <h3>Filtrele</h3>
+            <label>Metin<input data-f="text" placeholder="başlıkta ara" /></label>
+            <label>Ülke
+              <select data-f="country">
+                <option value="all">Tümü</option>
+                <option value="JP">Japonya</option>
+                <option value="UK">İngiltere</option>
+              </select>
+            </label>
+            <div class="row2">
+              <label>Yıl ≥<input data-f="yearMin" type="number" /></label>
+              <label>Yıl ≤<input data-f="yearMax" type="number" /></label>
+            </div>
+            <div class="row2">
+              <label><span>Fiyat ≥ <span class="cur-label"></span></span><input data-f="priceMin" type="number" step="any" /></label>
+              <label><span>Fiyat ≤ <span class="cur-label"></span></span><input data-f="priceMax" type="number" step="any" /></label>
+            </div>
+            <label>Maks. km<input data-f="kmMax" type="number" step="any" /></label>
+            <label>Satış türü
+              <select data-f="saleType">
+                <option value="all">Hepsi</option>
+                <option value="fixed">Sabit fiyatlı ilanlar</option>
+                <option value="auction">Mezat (açık artırma) lotları</option>
+              </select>
+            </label>
+            <label>Yakıt
+              <select data-f="fuel">
+                <option value="">Tümü</option>
+                <option value="petrol">Benzin</option>
+                <option value="diesel">Dizel</option>
+                <option value="hybrid">Hibrit</option>
+                <option value="plug-in">Plug-in hibrit</option>
+                <option value="electric">Elektrik</option>
+              </select>
+            </label>
+            <label>Vites
+              <select data-f="transmission">
+                <option value="">Tümü</option>
+                <option value="automatic">Otomatik</option>
+                <option value="manual">Manuel</option>
+              </select>
+            </label>
+            <label>KKTC yaş sınırı
+              <select data-f="age">
+                <option value="all">Hepsi</option>
+                <option value="okrisky">Uygun + sınırda</option>
+                <option value="ok">Sadece uygun</option>
+              </select>
+            </label>
+            <label class="check"><input data-f="onlyMatching" type="checkbox" /> Sadece aranan marka/model</label>
+            <label class="check"><input data-f="hidePriceless" type="checkbox" /> Fiyatı olmayanları gizle</label>
+            <label class="check"><input data-f="hideSold" type="checkbox" /> Satılmış / rezerve ilanları gizle</label>
+            <label class="check"><input data-f="rhdOnly" type="checkbox" /> LHD (soldan direksiyon) olanları gizle</label>
+            <h4>Siteler</h4>
+            <div id="site-filter" class="site-filter"></div>
+            <button type="button" id="reset-filters" class="link">Filtreleri sıfırla</button>
+          </aside>
+
+          <div class="results-main">
+            <div class="toolbar">
+              <span id="result-count" class="muted"></span>
+              <span class="spacer"></span>
+              <label class="inline">Sırala
+                <select id="sort">
+                  <option value="price-asc">Fiyat (artan)</option>
+                  <option value="price-desc">Fiyat (azalan)</option>
+                  <option value="cost-asc">Tahmini maliyet (artan)</option>
+                  <option value="year-desc">Yıl (yeni → eski)</option>
+                  <option value="km-asc">Km (az → çok)</option>
+                  <option value="site">Site</option>
+                </select>
+              </label>
+              <button type="button" id="export-results">CSV indir</button>
+              <button type="button" id="export-diag" title="Bir site ilan getirmiyorsa bu dosyayı paylaş: her sitenin adresi, yöntemi ve sayfada bulunan yapı örnekleri">Tanı raporu</button>
+              <button type="button" id="clear-results" title="Tüm arama sonuçlarını sil (takip listesi korunur)">Temizle</button>
+            </div>
+            <nav id="pager-top" class="pager" aria-label="Sayfalar"></nav>
+            <div id="results" class="grid"></div>
+            <nav id="pager" class="pager" aria-label="Sayfalar"></nav>
+            <div id="empty-state" class="empty">
+              <p><strong>Henüz sonuç yok.</strong></p>
+              <p>Yukarıdan marka/model girip <em>Tüm sitelerde ara</em>'ya bas. Eklenti her siteyi önce arka planda indirir, gerekirse küçültülmüş bir pencerede açar; ilanları toplar, aynı ilanın kopyalarını ayıklar ve burada birleştirir. Marka boş bırakılırsa modelden bulunur (ör. "prius" → Toyota).</p>
+              <p>Otomatik aranamayan bir sitedeysen eklenti simgesine tıklayıp <em>Bu sayfadaki ilanları topla</em>'yı kullan.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAKİP LİSTESİ -->
+      <section id="tab-favorites" class="tab">
+        <div class="toolbar">
+          <p class="muted">Satın alma işlemi (ödeme, sözleşme, mezat teklifi) güvenlik gereği ilgili sitenin kendi sayfasında yapılır. Buradan ilanı açabilir, satıcıya teklif mesajı hazırlayabilir ve süreci takip edebilirsin.</p>
+          <span class="spacer"></span>
+          <button type="button" id="export-favorites">CSV indir</button>
+        </div>
+        <div id="favorites" class="fav-list"></div>
+      </section>
+
+      <!-- SİTELER -->
+      <section id="tab-sites" class="tab">
+        <div class="panel help">
+          <p><strong>Arama şablonları.</strong> Her site için arama URL'si şablondan üretilir. <code>{make}</code>, <code>{model}</code>, <code>{q}</code> (marka + model + kelime), <code>{yearFrom}</code>, <code>{yearTo}</code>, <code>{priceMin}</code>, <code>{priceMax}</code> (sitenin para biriminde), <code>{kmMax}</code>, <code>{milesMax}</code>, <code>{postcode}</code> kullanılabilir. Değiştiriciler: <code>|lower</code> <code>|upper</code> <code>|title</code> <code>|slug</code> <code>|under</code> <code>|plus</code> <code>|enc</code>. <code>[ … ]</code> içindeki kısım, alan boşsa atlanır. Her satıra bir şablon yazılabilir: üstteki önce denenir, gereken alan boşsa (ör. model girilmemişse) alttakine geçilir.</p>
+          <p>Bir site URL yapısını değiştirirse: sitede kendi aramanı yap, adres çubuğundaki URL'yi buraya şablon olarak uyarla. Şablonu olmayan siteler otomatik aramaya katılmaz. Onlar için <em>Sitede aç</em>'ı kullanıp eklenti simgesinden sayfayı toplayabilirsin.</p>
+        </div>
+        <div class="panel site-test">
+          <div class="toolbar">
+            <p><strong>Siteleri test et.</strong> Tüm otomatik sitelerde "Toyota Prius" aranır. Her site için ilan geliyor mu, fiyat/yıl/km okunuyor mu ve kopya var mı kontrol edilir. Sonuçlar arama sonuçlarına karışmaz.</p>
+            <span class="spacer"></span>
+            <button type="button" id="run-site-test" class="primary">Siteleri test et</button>
+            <button type="button" id="download-site-test" disabled>Test raporunu indir</button>
+          </div>
+          <div id="site-test-result"></div>
+        </div>
+        <div class="toolbar">
+          <span class="spacer"></span>
+          <button type="button" id="reset-sites">Varsayılanlara dön</button>
+        </div>
+        <div id="sites-table" class="sites-table"></div>
+      </section>
+
+      <!-- AYARLAR -->
+      <section id="tab-settings" class="tab">
+        <form id="settings-form" class="settings">
+          <fieldset class="panel">
+            <legend>Para birimi &amp; kurlar</legend>
+            <label>Görüntüleme para birimi
+              <select name="displayCurrency"></select>
+            </label>
+            <div class="rates" id="rates-inputs"></div>
+            <p class="muted" id="rates-info"></p>
+            <button type="button" id="fetch-rates">Kurları güncelle</button>
+          </fieldset>
+
+          <fieldset class="panel">
+            <legend>KKTC ithalat kuralları</legend>
+            <label>Azami araç yaşı (yıl)
+              <input name="kktc.maxAgeYears" type="number" min="0" step="1" />
+            </label>
+            <label>Tahmini nakliye süresi (ay)
+              <input name="kktc.shippingMonths" type="number" min="0" step="1" />
+            </label>
+            <p class="muted">Bulunan kaynaklara göre KKTC'ye ithal edilen ikinci el aracın ilk tescil tarihi ile KKTC limanına varış tarihi arasında en fazla 5 yıl olmalı. Mevzuat değişebilir: KKTC Gümrük ve Rüsumat Dairesi / Motorlu Araçlar Mukayyitliği'nden teyit et.</p>
+          </fieldset>
+
+          <fieldset class="panel">
+            <legend>Tahmini maliyet</legend>
+            <div class="row2">
+              <label>Japonya → KKTC nakliye
+                <input name="costs.shippingJP.amount" type="number" min="0" step="any" />
+              </label>
+              <label>Birim<select name="costs.shippingJP.currency" data-currency></select></label>
+            </div>
+            <div class="row2">
+              <label>İngiltere → KKTC nakliye
+                <input name="costs.shippingUK.amount" type="number" min="0" step="any" />
+              </label>
+              <label>Birim<select name="costs.shippingUK.currency" data-currency></select></label>
+            </div>
+            <label>Sigorta (%)
+              <input name="costs.insurancePct" type="number" min="0" step="any" />
+            </label>
+            <label>Gümrük + vergiler toplamı (CIF üzerinden %)
+              <input name="costs.taxPct" type="number" min="0" step="any" placeholder="Gümrük müşavirinden öğren" />
+            </label>
+            <div class="row2">
+              <label>Sabit masraflar (liman, muayene, tescil…)
+                <input name="costs.fixedFees.amount" type="number" min="0" step="any" />
+              </label>
+              <label>Birim<select name="costs.fixedFees.currency" data-currency></select></label>
+            </div>
+            <p class="muted">Vergi oranı motor hacmi, yakıt tipi ve araç türüne göre değişir. Oran girilmeden tahmini maliyet gösterilmez.</p>
+          </fieldset>
+
+          <fieldset class="panel">
+            <legend>Teklif mesajı için iletişim bilgilerin</legend>
+            <label>Ad Soyad<input name="contact.name" /></label>
+            <label>E-posta<input name="contact.email" type="email" /></label>
+            <label>Telefon / WhatsApp<input name="contact.phone" /></label>
+          </fieldset>
+
+          <fieldset class="panel">
+            <legend>Arama motoru</legend>
+            <label>Pencere
+              <select name="runner.mode">
+                <option value="auto">Otomatik: önce hızlı indir, gerekirse sekmede aç (önerilen)</option>
+                <option value="background">Her zaman sekmede, küçültülmüş pencerede</option>
+                <option value="visible">Her zaman sekmede, görünür pencerede (robot doğrulaması çıkan siteler için)</option>
+              </select>
+            </label>
+            <label>Sayfa başına gösterilecek ilan
+              <input name="runner.pageSize" type="number" min="10" max="500" step="1" />
+            </label>
+            <label>Her seferde siteden getirilecek ilan sayısı
+              <input name="runner.perSite" type="number" min="1" max="500" step="1" />
+            </label>
+            <label>Site başına en fazla sayfa (sınır)
+              <input name="runner.maxPages" type="number" min="1" max="20" step="1" />
+            </label>
+            <label>Aynı anda aranacak site sayısı
+              <input name="runner.concurrency" type="number" min="1" max="6" />
+            </label>
+            <label>Sayfa yüklendikten sonra bekleme (ms)
+              <input name="runner.settleMs" type="number" min="0" step="any" />
+            </label>
+            <label>Sayfa yükleme zaman aşımı (ms)
+              <input name="runner.timeoutMs" type="number" min="5000" step="any" />
+            </label>
+            <label>İngiltere posta kodu (AutoTrader için, isteğe bağlı)
+              <input name="postcode" placeholder="SW1A 1AA" />
+            </label>
+          </fieldset>
+
+          <div class="settings-actions">
+            <button type="submit" class="primary">Ayarları kaydet</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <div id="toast" role="status"></div>
+    <script src="src/scraper.js"></script>
+    <script type="module" src="src/dashboard.js"></script>
+  </body>
+</html>
