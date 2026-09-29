@@ -73,7 +73,8 @@ export function pickPrices(priceTexts = []) {
   for (const { text, label = '', after = '', struck } of priceTexts) {
     const p = parsePrice(text);
     if (!p || struck) continue; // üstü çizili eski fiyat
-    const l = label.toLowerCase();
+    // Etiket = tutarın hemen önündeki metin (önceki fiyatın etiketi karışmasın).
+    const l = label.split(/[\d¥￥$£€₺]/).pop().toLowerCase();
     const a = after.toLowerCase();
     if (/^\s*(\/\s?mo|\/\s?month|per month|p\/m|pm\b|a month|monthly|pcm)/.test(a) || /\b(from|deposit|monthly|per month)\s*$/.test(l)) {
       continue; // taksit / peşinat
@@ -349,13 +350,15 @@ export function parseAuction(text, priceTexts = []) {
   }
   const grade = t.match(/(?:\b(?:grade|rating|score|puan)\s*[:：]?\s*([0-9](?:\.5)?|R|RA|S|X)\b)|(?:\b([0-9](?:\.5)?|R|RA|S)\s+(?:rating|grade)\b)/i);
   if (grade) info.grade = (grade[1] || grade[2]).toUpperCase();
-  for (const { text: pt, label = '' } of priceTexts || []) {
+  for (const { text: pt, label: rawLabel = '' } of priceTexts || []) {
     const p = parsePrice(pt);
     if (!p) continue;
+    // Yalnızca tutarın hemen önündeki etiket: "Start price: 1 ¥ Final price:" → "Final price:".
+    const label = rawLabel.split(/[\d¥￥$£€]/).pop();
     if (/(start|starting|başlangıç|старт)/i.test(label) && !info.start) info.start = p;
     else if (/(final|sold for|hammer|winning|son fiyat|конечн)/i.test(label) && !info.final) info.final = p;
     else if (/(fixed price|one price|buy now|sabit fiyat)/i.test(label) && !info.fixed) info.fixed = p;
-    else if (/(current bid|high bid|highest bid|güncel teklif)\s*:?\s*$/i.test(label) && !info.bid && p.amount > 0) info.bid = p;
+    else if (/(current bid|high bid|highest bid|last bid|güncel teklif)\s*:?\s*$/i.test(label) && !info.bid && p.amount > 0) info.bid = p;
   }
   if (info.final && !(info.final.amount > 0)) delete info.final;
   const status = t.match(/\b(not sold|unsold|for sale|sold|awaiting auction|awaiting|upcoming|negotiat\w*)\b/i);
