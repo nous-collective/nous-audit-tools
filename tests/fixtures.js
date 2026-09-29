@@ -318,7 +318,57 @@ export const ROUTES = {
   '/order-ja': orderJapanese,
   '/order-text': orderText,
   '/live-banzai': liveBanzai,
+  '/live-cfj': liveCarFromJapan,
+  '/live-tcv': liveTcv,
+  '/live-copart': liveCopart,
+  '/live-soldout': liveSoldOut,
 };
+
+// CarFromJapan: üstü çizili eski fiyat (class="line-through") + "Delivery: <liman>" etiketi.
+export function liveCarFromJapan() {
+  const rows = [
+    { id: 'a1', old: '22,980', now: '22,337', total: '25,008', pct: '-3%' },
+    { id: 'a2', old: null, now: '21,938', total: '24,609', pct: '' },
+    { id: 'a3', old: '16,747', now: '16,375', total: '19,770', pct: '-2%' },
+  ];
+  const cards = rows.map((r) => `<div class="car-card"><a href="/cheap-used-toyota-prius-2023-for-sale-${r.id}"><img src="/i/${r.id}.jpg"></a><span>${r.pct}</span>
+    <a href="/cheap-used-toyota-prius-2023-for-sale-${r.id}"><h3>2023 TOYOTA PRIUS MXWH60 2WD</h3></a>
+    <p>Registration year 2023 / Jan</p><p>Mileage 17,402 miles</p><p>Transmission Automatic</p>
+    <div><p>Car Price :</p><div>${r.old ? `<span class="car-price line-through text-xs">US$ ${r.old}</span>` : ''}<span class="car-price">US$ ${r.now}</span></div></div>
+    <div><p>Delivery:</p><span>Baltimore, MD (Port)</span></div><div><p>Total ( C&amp;F ):</p><span>US$ ${r.total}</span></div><a href="/inquiry">Inquire Now</a></div>`).join('');
+  return layout('CarFromJapan', `<div class="grid">${cards}</div>`);
+}
+
+// TCV: açıklamada yuvarlak km ("ONLY 77,000 KM"), etiketli gerçek değer "Mileage 76,497km".
+export function liveTcv() {
+  const cards = [1, 2, 3].map((i) => `<div class="stock"><a href="/used_car/toyota/prius/4292989${i}/"><img src="/t/${i}.jpg"></a>
+    <a href="/used_car/toyota/prius/4292989${i}/">2011 Toyota Prius</a><p>FOB Price US$2,19${i}</p><p>Estimated Total Price US$4,62${i}</p>
+    <p>1.8S ★ONLY 77,000 KM★BACK CAMERA</p><p>Registration Year 2011/04</p><p>Mileage 76,49${i}km</p></div>`).join('');
+  return layout('TCV', `<div class="list">${cards}</div>`);
+}
+
+// Copart UK: "Estimated retail value" satış fiyatı değil; "Current bid: £0.00" = teklif yok; 8 haneli lot no.
+export function liveCopart() {
+  const lots = [
+    { lot: '56012246', title: '2017 TOYOTA PRIUS', odo: '95972', erv: '7,549.00', bid: '3,100.00' },
+    { lot: '57792116', title: '2014 TOYOTA PRIUS 1.8 VVTi T Spirit 5dr CVT Auto', odo: '37378', erv: '3,523.00', bid: '125.00' },
+    { lot: '63064296', title: '2007 TOYOTA PRIUS 1.5 VVTi T3 Hybrid 5dr CVT Auto', odo: '0', erv: '1,866.00', bid: '0.00' },
+  ];
+  const rows = lots.map((x) => `<tr><td><a href="/lot/${x.lot}/clean-title-prius"><img src="/c/${x.lot}.jpg"></a></td>
+    <td><a href="/lot/${x.lot}/clean-title-prius">${x.title}</a> Lot # <a href="/lot/${x.lot}/clean-title-prius">${x.lot}</a> Watch</td>
+    <td>Odometer <span>${x.odo}</span> Estimated retail value <span>£${x.erv}</span> GBP</td>
+    <td>Category N Rear End Damage</td><td>SANDWICH Auction in 0D 1H 35min</td><td>Current bid: <span>£${x.bid}</span> GBP <button>Bid now</button></td></tr>`).join('');
+  return layout('Copart', `<table><tbody>${rows}</tbody></table>`);
+}
+
+// TRUST / CarJunction: satılmış ve rezerve ilanlar.
+export function liveSoldOut() {
+  const st = ['', 'NEW SOLD OUT', 'Reserved', ''];
+  const cards = st.map((s, i) => `<div class="unit"><a href="/stocklist/33279${i}"><img src="/s/${i}.jpg"></a>
+    <p>S/N 33279${i}</p><a href="/stocklist/33279${i}"><h4>TOYOTA PRIUS S 2020</h4></a><span>${s}</span>
+    ${s ? '' : '<p>Vehicle Price USD 11,86' + i + '</p>'}<p>1,790 cc Hybrid 94,000 km</p><p>12 sold this month</p></div>`).join('');
+  return layout('Trust', `<div class="stock">${cards}</div>`);
+}
 
 export function startServer() {
   const server = http.createServer((req, res) => {

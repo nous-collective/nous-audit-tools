@@ -228,3 +228,4 @@ label.inline select { width: auto; }
 .search label.check-inline { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 13px; }
 .search label.check-inline input { width: auto; }
 .card .price small.auction-note { color: var(--warn); }
+.card .price small.sold-note { color: var(--bad, #c0392b); font-weight: 600; }

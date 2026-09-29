@@ -487,3 +487,29 @@ test('mezat teklif mesajı', () => {
   assert.match(m, /auction sheet/);
   assert.match(m, /Famagusta/);
 });
+
+test('son kontrol: kampanya tutarı, üstü çizili fiyat, "Delivery:" etiketi, etiketli km', () => {
+  const p = (arr) => pickPrices(arr).price?.amount ?? null;
+  // Exchange & Mart: başlıktaki kampanya rozeti
+  assert.equal(p([{ text: '£695', label: '5dr ', after: ' HOME WALL CHARGER OFFER £22,677 or Fi' }, { text: '£22,677', label: 'OFFER ', after: ' or Finance from £332' }]), 22677);
+  assert.equal(p([{ text: '£545', label: 'optional extras worth ', after: '. Specification' }]), null);
+  assert.equal(p([{ text: '£3,500', label: 'Prius ', after: ' or Best Offer' }]), 3500, 'pazarlık payı gerçek fiyattır');
+  assert.equal(p([{ text: '£9,995', label: 'Prius ', after: ' Free delivery' }]), 9995);
+  // CarFromJapan: "Delivery: Baltimore" etiketi kargo ücreti değildir; üstü çizili eski fiyat atlanır
+  assert.equal(p([{ text: 'US$ 21,938', label: 'Car Price : ', after: ' Delivery: Baltimore, MD (Port)' }]), 21938);
+  assert.equal(p([{ text: 'US$ 22,980', label: 'Car Price : ', after: ' US$ 22,337', struck: true }, { text: 'US$ 22,337', label: '', after: ' Delivery:' }]), 22337);
+  assert.equal(p([{ text: '+£45', label: '£3,000 ', after: ' delivery' }]), null);
+  // Copart: tahmini değer ve 0 teklif fiyat değildir
+  assert.equal(p([{ text: '£7,549.00', label: ' 95972 Estimated retail value ', after: ' GBP' }, { text: '£0.00', label: 'Current bid: ', after: ' GBP' }]), null);
+  assert.equal(parseMileageKm('★ONLY 77,000 KM★ Mileage 76,497km'), 76497);
+  assert.equal(parseMileageKm('Odometer 0 Estimated'), null);
+});
+
+test('son kontrol: ithal aracın İngiltere kayıt yılı yerine marka önündeki üretim yılı', () => {
+  const site = { id: 'exchangeandmart', country: 'UK', currency: 'GBP', kind: 'marketplace' };
+  const l = toListing({ url: 'https://www.exchangeandmart.co.uk/ad/33677479', title: 'Honda Fit Hybrid Electric', priceTexts: [{ text: '£8,495', label: 'Electric ', after: ' or Finance from £188' }], text: 'Honda Fit Hybrid Electric £8,495 or Finance from £188 per month 2026 Other Tax: £200 Mileage: 61,000 Hybrid Welcome SmartDrive Motors A stunning, ultra-economical 2015 Honda Fit (Jazz) 1.5 Petrol Hybrid' }, site);
+  assert.deepEqual([l.year, l.km, l.price], [2015, Math.round(61000 * 1.609344), 8495]);
+  // Etiketli yıl varsa o geçerlidir
+  const b = toListing({ url: 'https://x.jp/1', title: 'TOYOTA PRIUS', priceTexts: [], text: 'Year : 2012.03 compare 2019 Toyota Aqua' }, null);
+  assert.deepEqual([b.year, b.month], [2012, 3]);
+});

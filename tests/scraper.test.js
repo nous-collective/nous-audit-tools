@@ -285,3 +285,44 @@ test('Canlı yapı: Banzai24 mezat lotları (boşluklu ¥ fiyat, etiketli yıl, 
   assert.equal(c.auctionInfo.grade, 'R');
   assert.equal(c.price, 139000);
 });
+
+test('Canlı yapı: CarFromJapan üstü çizili eski fiyat ve "Delivery:" etiketi', async () => {
+  const raw = await scrape('/live-cfj');
+  const items = toListings(raw.items, { id: 'carfromjapan', country: 'JP', currency: 'USD', kind: 'exporter' }, raw.url);
+  const by = (id) => items.find((x) => x.url.endsWith(id));
+  assert.deepEqual([by('a1').price, by('a1').priceTotal], [22337, 25008], 'indirimli güncel fiyat, C&F toplam');
+  assert.deepEqual([by('a2').price, by('a2').priceTotal], [21938, 24609], '"Delivery:" etiketinden önceki fiyat atlanmaz');
+  assert.equal(by('a3').price, 16375);
+  assert.deepEqual([by('a1').year, by('a1').month, by('a1').km], [2023, 1, 28006]);
+});
+
+test('Canlı yapı: TCV etiketli km açıklamadaki yuvarlak km yerine', async () => {
+  const raw = await scrape('/live-tcv');
+  const items = toListings(raw.items, { id: 'tcv', country: 'JP', currency: 'USD', kind: 'exporter' }, raw.url);
+  assert.equal(items.length, 3);
+  const a = items.find((x) => x.url.includes('42929891'));
+  assert.deepEqual([a.price, a.priceTotal, a.km, a.year, a.month], [2191, 4621, 76491, 2011, 4]);
+});
+
+test('Canlı yapı: Copart tahmini değer fiyat sayılmaz, güncel teklif okunur', async () => {
+  const raw = await scrape('/live-copart');
+  const items = toListings(raw.items, { id: 'copart', country: 'UK', currency: 'GBP', kind: 'auction' }, raw.url);
+  const by = (lot) => items.find((x) => x.url.includes(lot));
+  const a = by('56012246');
+  assert.deepEqual([a.price, a.currency, a.priceKind], [3100, 'GBP', 'bid']);
+  assert.equal(a.auctionInfo.lot, '56012246', 'lot numarası kesilmez');
+  assert.equal(a.km, Math.round(95972 * 1.609344), 'Odometer mil');
+  assert.equal(by('57792116').price, 125);
+  const c = by('63064296');
+  assert.equal(c.price, null, 'teklif yoksa tahmini değer gösterilmez');
+  assert.equal(c.km, null, 'Odometer 0 = bilinmiyor');
+});
+
+test('Canlı yapı: satılmış / rezerve ilanlar işaretlenir', async () => {
+  const raw = await scrape('/live-soldout');
+  const items = toListings(raw.items, { id: 'trust', country: 'JP', currency: 'USD', kind: 'exporter' }, raw.url);
+  const by = (i) => items.find((x) => x.url.endsWith(`33279${i}`));
+  assert.equal(items.length, 4);
+  assert.deepEqual([0, 1, 2, 3].map((i) => by(i).availability), [null, 'sold', 'reserved', null], '"12 sold this month" satıldı sayılmaz');
+  assert.equal(by(0).price, 11860);
+});

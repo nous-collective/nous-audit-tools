@@ -48,11 +48,33 @@
       out.push({
         text: m[0],
         label: text.slice(Math.max(0, m.index - 30), m.index),
-        after: text.slice(m.index + m[0].length, m.index + m[0].length + 20),
+        after: text.slice(m.index + m[0].length, m.index + m[0].length + 40),
       });
       if (out.length >= 6) break;
     }
     return out;
+  }
+
+  // Üstü çizili eski fiyat (<del>, class="line-through"/"old-price", CSS text-decoration) güncel fiyat değildir.
+  const STRUCK_CLASS = /(line-?through|strike|crossed|old-?price|price-?old|was-?price|price-?was|before-?price|price-?before|original-?price|regular-?price|prev-?price)/i;
+  function markStruck(ctx, el, prices) {
+    if (!prices.length) return prices;
+    const view = ctx.doc.defaultView;
+    const struck = [];
+    for (const e of el.querySelectorAll('*')) {
+      if (SKIP_TAGS.has(e.tagName)) continue;
+      const t = norm(e.textContent);
+      if (!t || t.length > 40 || !/\d/.test(t)) continue;
+      let hit = /^(DEL|S|STRIKE)$/.test(e.tagName) || STRUCK_CLASS.test(cls(e));
+      if (!hit && view?.getComputedStyle) {
+        try {
+          hit = /line-through/.test(view.getComputedStyle(e).textDecorationLine);
+        } catch {}
+      }
+      if (hit) struck.push(t.replace(/\s/g, ''));
+    }
+    if (!struck.length) return prices;
+    return prices.map((p) => (struck.some((t) => t.includes(p.text.replace(/\s/g, ''))) ? { ...p, struck: true } : p));
   }
 
   function absUrl(ctx, u) {
@@ -331,7 +353,7 @@
           url: link.href,
           title: titleOf(ctx, el, link),
           image: imageOf(ctx, el),
-          priceTexts: prices,
+          priceTexts: markStruck(ctx, el, prices),
           text: text.slice(0, 800),
           source: 'dom',
           structured: null,

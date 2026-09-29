@@ -18,6 +18,9 @@ const MAKE_ALIASES = [
   ['Škoda', 'Skoda'],
 ].sort((a, b) => b[0].length - a[0].length);
 
+// Marka adları yalnızca harf, boşluk ve tire içerir; kaçış gerekmez.
+const MAKE_YEAR_RE = new RegExp(String.raw`\b(19[89]\d|20[0-4]\d)\s+(?:${MAKE_ALIASES.map(([a]) => a).join('|')})\b`, 'i');
+
 const CURRENCY_CODES = {
   'US$': 'USD', USD: 'USD', $: 'USD',
   '£': 'GBP', GBP: 'GBP',
@@ -67,9 +70,9 @@ export function parsePrice(text) {
 export function pickPrices(priceTexts = []) {
   let price = null;
   let total = null;
-  for (const { text, label = '', after = '' } of priceTexts) {
+  for (const { text, label = '', after = '', struck } of priceTexts) {
     const p = parsePrice(text);
-    if (!p) continue;
+    if (!p || struck) continue; // üstü çizili eski fiyat
     const l = label.toLowerCase();
     const a = after.toLowerCase();
     if (/^\s*(\/\s?mo|\/\s?month|per month|p\/m|pm\b|a month|monthly|pcm)/.test(a) || /\b(from|deposit|monthly|per month)\s*$/.test(l)) {
@@ -79,14 +82,23 @@ export function pickPrices(priceTexts = []) {
     if (/^\s*(off\b|discount|cashback|saving|reduction|price drop|deposit contribution)/.test(a) || /\b(save|saving|discount|reduced by|price drop)\s*:?\s*$/.test(l)) {
       continue;
     }
+    // Kampanya / hediye tutarı ("£695 HOME WALL CHARGER OFFER", "extras worth £545", "£1,000 bonus").
+    // "£3,500 or best offer", "£2,000 ono" gerçek fiyattır.
+    if ((/^[^£$¥€₺\d]{0,30}\b(offer|voucher|bonus|gift|incentive)\b/.test(a) && !/^\s*(or|ono|o\.n\.o|make an|best|near)/.test(a)) || /\b(worth|extras|value of|up to|bonus|voucher)\s*:?\s*$/.test(l)) {
+      continue;
+    }
     // Yol vergisi ("£20 a yr road tax"), posta/kargo ("+£45 postage") araç fiyatı değildir.
-    if (/^\s*(a\s?yr|\/\s?yr|a year|per year|per annum|p\/?a\b|pa\b|road tax|tax\b|ved\b|postage|delivery|shipping|collection)/.test(a) || /(road tax|tax|ved|\+|postage|delivery|shipping)\s*:?\s*$/.test(l)) {
+    if (/^\s*(a\s?yr|\/\s?yr|a year|per year|per annum|p\/?a\b|pa\b|road tax|tax\b|ved\b|(?:postage|delivery|shipping|collection)(?!\s*:))/.test(a) || /(road tax|tax|ved|\+|postage|delivery|shipping)\s*:?\s*$/.test(l)) {
       continue;
     }
     if (/(total|cif|c&f|c\s?and\s?f|toplam)/.test(l)) {
       total ??= p;
     } else if (/\b(was|previous|old price|rrp|save|saving|you save|discount|off)\b[^\d]*$/.test(l)) {
       continue;
+    } else if (/\b(estimated|est\.|retail value|market value|valuation|cap value|guide value)\b[^\d]*$/.test(l)) {
+      continue; // tahmini değer (Copart "Estimated retail value") satış fiyatı değildir
+    } else if (!(p.amount > 0)) {
+      continue; // "Current bid: £0.00" = henüz teklif yok
     } else {
       price ??= p;
     }
@@ -127,12 +139,17 @@ export function parseMileageKm(text, defaultUnit = 'km') {
   }
   // Binlik ayırıcı yalnızca , veya . : "-$30 118,000 km" içindeki boşluk sayıyı birleştirmesin.
   // Binlik ayırıcı tutarlı olmalı: "136 000 km", "118,000 km"; "-$30 118,000 km" içindeki 30 sayıya karışmaz.
-  const m = text.match(/(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)\s?\(?\s?(km|kms|kilometers|kilometres|miles|mile|mi)\b/i);
+  const NUM_UNIT = String.raw`(\d{1,3}(?:,\d{3})+|\d{1,3}(?:\.\d{3})+|\d{1,3}(?:[ \u00a0]\d{3})+|\d+)\s?\(?\s?(km|kms|kilometers|kilometres|miles|mile|mi)\b`;
+  // Etiketli değer ("Mileage 76,497km") açıklamadaki yuvarlak sayıdan ("ONLY 77,000 KM") önce gelir.
+  const m =
+    text.match(new RegExp(String.raw`\b(?:mileage|odometer|走行距離)\s*[:：]?\s*` + NUM_UNIT, 'i')) ||
+    text.match(new RegExp(String.raw`(?<![\d.,])` + NUM_UNIT, 'i'));
   if (!m) {
     // Birimsiz "Mileage: 66600" (birim sitenin ülkesine göre varsayılır).
     const bare = text.match(/\b(?:mileage|odometer)\s*:?\s*(\d{1,3}(?:[,.]\d{3})+|\d{2,7})(?![\d.,]*\s?(?:km|mi))/i);
     if (!bare) return null;
     const v = Number(bare[1].replace(/[,.]/g, ''));
+    if (!v) return null; // "Odometer 0" = bilinmiyor
     return defaultUnit === 'mi' ? Math.round(v * 1.609344) : v;
   }
   const v = Number(m[1].replace(/[,.\s\u00a0]/g, ''));
@@ -320,7 +337,7 @@ function cleanText(s, max = 200) {
 export function parseAuction(text, priceTexts = []) {
   const t = text || '';
   const info = {};
-  const lot = t.match(/\blot\s*(?:no\.?|#)?\s*[:：]?\s*(\d{1,7})(?:\s*,\s*([^,]{3,40}?)\s*,)?/i);
+  const lot = t.match(/\blot\s*(?:no\.?|#)?\s*[:：]?\s*(\d{1,10})(?!\d)(?:\s*,\s*([^,]{3,40}?)\s*,)?/i);
   if (lot) {
     info.lot = lot[1];
     if (lot[2]) info.house = lot[2].trim();
@@ -338,6 +355,7 @@ export function parseAuction(text, priceTexts = []) {
     if (/(start|starting|başlangıç|старт)/i.test(label) && !info.start) info.start = p;
     else if (/(final|sold for|hammer|winning|son fiyat|конечн)/i.test(label) && !info.final) info.final = p;
     else if (/(fixed price|one price|buy now|sabit fiyat)/i.test(label) && !info.fixed) info.fixed = p;
+    else if (/(current bid|high bid|highest bid|güncel teklif)\s*:?\s*$/i.test(label) && !info.bid && p.amount > 0) info.bid = p;
   }
   if (info.final && !(info.final.amount > 0)) delete info.final;
   const status = t.match(/\b(not sold|unsold|for sale|sold|awaiting auction|awaiting|upcoming|negotiat\w*)\b/i);
@@ -376,8 +394,11 @@ export function toListing(raw, site, pageUrl) {
     // Başlıktaki yıl önceliklidir; ay yalnızca metinde yazıyorsa oradan alınır.
     const a = parseYearMonth(title);
     // Etiketli yıl ("Year : 2019.01", "Registration: 2019/1") mezat/ilan tarihinden önce gelir.
-    const labeled = text.match(/\b(?:year|model year|reg(?:istration)?(?: year| date)?|first registration|初度登録|年式)\s*[:：]?\s*((?:19|20)\d\d(?:\s*[/.\-年]\s*\d{1,2})?)/i);
-    const b = labeled ? parseYearMonth(labeled[1]) : parseYearMonth(text);
+    const labeled = text.match(/\b(?:year|model year|reg(?:istration)?(?: year| date)?|first registration|初度登録|年式)\s*[:：]?\s*((?:19|20)\d\d(?:\s*[/.\-年]\s*\d{1,2}|\s*[/.\-]?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b)?)/i);
+    // Marka adının hemen önündeki yıl ("A stunning 2015 Honda Fit"): ithal aracın İngiltere kayıt yılı
+    // (ör. 2026) ilan alanında geçse de üretim yılı budur.
+    const makeYear = labeled ? null : text.match(MAKE_YEAR_RE);
+    const b = labeled ? parseYearMonth(labeled[1]) : makeYear ? { year: Number(makeYear[1]), month: null } : parseYearMonth(text);
     ym = a.year ? { year: a.year, month: a.month ?? (b.year === a.year ? b.month : null) } : b;
     if (!ym.year && e.year) ym = { year: e.year, month: null };
   }
@@ -403,9 +424,24 @@ export function toListing(raw, site, pageUrl) {
       price = auctionInfo.final;
       priceKind = 'final';
     } else {
-      if (auctionInfo?.start) price = auctionInfo.start;
-      priceKind = site.id === 'copart' ? 'bid' : 'start';
+      if (auctionInfo?.bid) {
+        price = auctionInfo.bid;
+        priceKind = 'bid';
+      } else if (auctionInfo?.start) {
+        price = auctionInfo.start;
+        priceKind = 'start';
+      } else {
+        priceKind = site.id === 'copart' ? 'bid' : 'start';
+      }
     }
+  }
+
+  // Satılmış / rezerve ilan ("SOLD OUT", "Reserved", "売約済"); mezatta durum auctionInfo'dadır.
+  let availability = null;
+  if (site?.kind !== 'auction') {
+    // Büyük harfli "SOLD" rozeti; "12 sold", "Sold by" gibi ifadeler sayılmaz.
+    if (/\bsold\s?out\b|売約済|成約済|\bsatıldı\b/i.test(text) || /\bSOLD\b(?!\s+(?:BY|TO|WITH|IN|ON|AS|FOR)\b)/.test(text)) availability = 'sold';
+    else if (/\b(reserved|under offer|sale agreed|on hold)\b|商談中/i.test(text)) availability = 'reserved';
   }
 
   return {
@@ -417,6 +453,7 @@ export function toListing(raw, site, pageUrl) {
     auction: site?.kind === 'auction' || undefined,
     auctionInfo,
     priceKind,
+    availability,
     title,
     image: raw.image && /^https?:/i.test(raw.image) ? raw.image : null,
     price: price?.amount ?? null,

@@ -45,7 +45,7 @@ const STATUS_TEXT = {
 const FAV_STATUSES = ['İnceleniyor', 'Teklif istendi', 'Pazarlıkta', 'Ödeme yapıldı', 'Yolda', 'Teslim alındı', 'Vazgeçildi'];
 const DEFAULT_FILTERS = {
   text: '', country: 'all', yearMin: '', yearMax: '', priceMin: '', priceMax: '', kmMax: '',
-  fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false, onlyMatching: true, saleType: 'all',
+  fuel: '', transmission: '', age: 'all', hidePriceless: false, rhdOnly: false, onlyMatching: true, hideSold: true, saleType: 'all',
 };
 // Tüm sitelerin ilanları tek listede, sayfa sayfa (1, 2, 3…) gösterilir.
 const DEFAULT_PAGE_SIZE = 50;
@@ -361,6 +361,7 @@ function filteredResults() {
   const words = f.text.toLocaleLowerCase('tr').split(/\s+/).filter(Boolean);
   const out = state.results.filter((l) => {
     if (f.onlyMatching && state.query && !matchesQuery(l, state.query)) return false;
+    if (f.hideSold && l.availability) return false;
     if (f.country !== 'all' && l.country !== f.country) return false;
     if (f.saleType === 'fixed' && l.auction) return false;
     if (f.saleType === 'auction' && !l.auction) return false;
@@ -492,6 +493,7 @@ function priceBlock(l) {
     formatMoney(l.price, l.currency),
     l.currency !== cur() && conv != null ? h('small', null, `≈ ${formatMoney(conv, cur())}`) : null,
     l.priceTotal != null ? h('small', null, `Toplam/CIF: ${formatMoney(l.priceTotal, l.priceTotalCurrency)}`) : null,
+    l.availability ? h('small', { class: 'sold-note' }, l.availability === 'sold' ? 'Sitede SATILDI olarak görünüyor' : 'Sitede REZERVE / opsiyonlu') : null,
     l.auction ? h('small', { class: 'auction-note' }, AUCTION_PRICE_LABEL[l.priceKind] || 'Mezat fiyatı') : null,
     l.auctionInfo ? h('small', null, auctionLine(l.auctionInfo)) : null,
   );
