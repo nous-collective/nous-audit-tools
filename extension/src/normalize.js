@@ -119,6 +119,8 @@ export function parseYearMonth(...texts) {
     for (const m of t.matchAll(re)) {
       const year = Number(m[1]);
       if (year > now + 1 || (found && year !== found.year)) continue;
+      // Tam tarihin yılı ("29.12.2026 23:00" mezat/ilan tarihi) araç yılı değildir.
+      if (/\d{1,2}[./-]\d{1,2}[./-]$/.test(t.slice(Math.max(0, m.index - 6), m.index))) continue;
       const month = m[2] ? Number(m[2]) : m[3] ? MONTHS[m[3].toLowerCase()] : null;
       found ??= { year, month: null };
       if (month) {
@@ -402,7 +404,9 @@ export function toListing(raw, site, pageUrl) {
     // (ör. 2026) ilan alanında geçse de üretim yılı budur.
     const makeYear = labeled ? null : text.match(MAKE_YEAR_RE);
     const b = labeled ? parseYearMonth(labeled[1]) : makeYear ? { year: Number(makeYear[1]), month: null } : parseYearMonth(text);
-    ym = a.year ? { year: a.year, month: a.month ?? (b.year === a.year ? b.month : null) } : b;
+    // Açık etiketli yıl başlıktaki sayıdan önce gelir; başlıkta mezat tarihi vb. geçebilir.
+    if (labeled && b.year) ym = { year: b.year, month: b.month ?? (a.year === b.year ? a.month : null) };
+    else ym = a.year ? { year: a.year, month: a.month ?? (b.year === a.year ? b.month : null) } : b;
     if (!ym.year && e.year) ym = { year: e.year, month: null };
   }
   // Birimi belirtilmemiş kilometre sayacı: İngiliz sitelerinde mil, diğerlerinde km.

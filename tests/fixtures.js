@@ -353,11 +353,12 @@ export function liveCopart() {
     { lot: '56012246', title: '2017 TOYOTA PRIUS', odo: '95972', erv: '7,549.00', bid: '3,100.00' },
     { lot: '57792116', title: '2014 TOYOTA PRIUS 1.8 VVTi T Spirit 5dr CVT Auto', odo: '37378', erv: '3,523.00', bid: '125.00' },
     { lot: '63064296', title: '2007 TOYOTA PRIUS 1.5 VVTi T3 Hybrid 5dr CVT Auto', odo: '0', erv: '1,866.00', bid: '0.00' },
+    ...[1, 2, 3].map((i) => ({ lot: `6400000${i}`, title: `201${i} TOYOTA PRIUS`, odo: `8000${i}`, erv: `5,00${i}.00`, bid: `1,20${i}.00` })),
   ];
   const rows = lots.map((x) => `<tr><td><a href="/lot/${x.lot}/clean-title-prius"><img src="/c/${x.lot}.jpg"></a></td>
-    <td><a href="/lot/${x.lot}/clean-title-prius">${x.title}</a> Lot # <a href="/lot/${x.lot}/clean-title-prius">${x.lot}</a> Watch</td>
+    <td>Lot info <img src="/c/t${x.lot}.png"><a href="/lot/${x.lot}/clean-title-prius">${x.title}</a> Lot # <a href="/lot/${x.lot}/clean-title-prius">${x.lot}</a> Watch</td>
     <td>Odometer <span>${x.odo}</span> Estimated retail value <span>£${x.erv}</span> GBP</td>
-    <td>Category N Rear End Damage</td><td>SANDWICH Auction in 0D 1H 35min</td><td>Current bid: <span>£${x.bid}</span> GBP <button>Bid now</button></td></tr>`).join('');
+    <td>Category N Rear End Damage</td><td>SANDWICH Auction in 0D 1H 35min</td><td>Current bid: <span>£${x.bid}</span> GBP <button>Bid now</button> <a href="/lot/${x.lot}/clean-title-prius">Details</a></td></tr>`).join('');
   return layout('Copart', `<table><tbody>${rows}</tbody></table>`);
 }
 

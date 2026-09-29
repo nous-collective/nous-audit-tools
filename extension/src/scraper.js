@@ -176,8 +176,19 @@
     // Önce gerçek başlık etiketleri, sonra "title/name" sınıflı öğeler.
     const h = el.querySelector('h1,h2,h3,h4,h5,h6');
     // "title/name" sınıflı öğelerden fiyat ya da yalnızca sayı olmayan ilki ("price-title" gibi sınıflar var).
+    // Başlık kutusu alt satırlar içeriyorsa (Banzai24: ad + "Lot 6589422, OnePURA Stock, 29.12.2026") ilk satır alınır.
+    const BLOCK_TAGS = /^(P|DIV|H[1-6]|LI|UL|DL|DT|DD|SECTION|HEADER|TABLE|TR)$/;
+    const firstLine = (n) => {
+      for (let box = n, depth = 0; box && depth < 4; depth++) {
+        // Yalnızca blok satırlar ayrılır; <span>2012</span><span>Toyota</span> gibi satır içi parçalar tek başlıktır.
+        const kids = [...box.children].filter((k) => BLOCK_TAGS.test(k.tagName) && /\p{L}{2}/u.test(textOf(ctx, k)));
+        if (kids.length >= 2) return kids.map((k) => textOf(ctx, k)).find((t) => VEHICLE_RE.test(t)) || textOf(ctx, n);
+        box = kids[0];
+      }
+      return textOf(ctx, n);
+    };
     const named = [...el.querySelectorAll('[class*="title" i],[class*="heading" i],[class*="name" i]')]
-      .map((n) => textOf(ctx, n))
+      .map((n) => firstLine(n))
       .find((t) => t && /\p{L}{2}/u.test(t) && !new RegExp(PRICE_SRC, 'i').test(t));
     const cands = [h && textOf(ctx, h), named, link?.title, ...(link?.texts || []), el.querySelector('img[alt]')?.getAttribute('alt'), el.querySelector('[alt]')?.getAttribute('alt')];
     const ok = cands
@@ -257,6 +268,19 @@
     return `${el.tagName}|${c}`;
   }
 
+  function fragmentsOfOne(cards) {
+    const byParent = new Map();
+    for (const c of cards) {
+      const a = c.el.closest('a[href]') || c.el.querySelector('a[href]');
+      const href = a?.getAttribute('href');
+      if (!byParent.has(c.el.parentElement)) byParent.set(c.el.parentElement, []);
+      byParent.get(c.el.parentElement).push(href);
+    }
+    let shared = 0;
+    for (const hrefs of byParent.values()) if (hrefs.length > 1 && new Set(hrefs).size < hrefs.length) shared++;
+    return shared >= byParent.size / 2;
+  }
+
   function fromRepeatedCards(ctx, diag) {
     // Gruplar "ebeveyn imzası > öğe imzası" ile ayrılır: sınıfsız <li> ya da her yerde geçen
     // "row" gibi öğeler, menülerdeki benzerleriyle aynı gruba düşüp oranı bozmasın.
@@ -316,6 +340,9 @@
       const pkFrac = withPriceOrKm / good;
       let score = good * (1 + imgFrac + withYear / good + 2 * pkFrac);
       if (priceCount / good > 4) score *= 0.3; // muhtemelen birden fazla kart içeren satır
+      // Bir ilanın parçaları (tablo satırındaki hücreler; aynı ilana giden kardeş kutular) kart değildir:
+      // ilanın tamamı (satır) seçilsin ki km / fiyat hücreleri dışarıda kalmasın.
+      if (cards.every((c) => /^(TD|TH)$/.test(c.el.tagName)) || fragmentsOfOne(cards)) score *= 0.3;
       scored.push({ sig, score, pkFrac, total: els.length, good, cards });
     }
     scored.sort((a, b) => b.score - a.score);

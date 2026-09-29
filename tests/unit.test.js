@@ -513,3 +513,10 @@ test('son kontrol: ithal aracın İngiltere kayıt yılı yerine marka önündek
   const b = toListing({ url: 'https://x.jp/1', title: 'TOYOTA PRIUS', priceTexts: [], text: 'Year : 2012.03 compare 2019 Toyota Aqua' }, null);
   assert.deepEqual([b.year, b.month], [2012, 3]);
 });
+
+test('son kontrol: mezat tarihi yıl sayılmaz, etiketli yıl başlıktan önce', () => {
+  assert.deepEqual(parseYearMonth('TOYOTA PRIUS Lot 6589422, OnePURA Stock, 29.12.2026 23:00'), { year: null, month: null });
+  const site = { id: 'banzai24op', country: 'JP', currency: 'JPY', kind: 'auction' };
+  const l = toListing({ url: 'https://banzai24.com/en/car/JP/x', title: 'TOYOTA PRIUS, S 4WD Japan Lot 6589422, OnePURA Stock, 29.12.2026 23:00', priceTexts: [{ text: '1 525 000 ¥', label: ' : 1.8 l / 150 hp Fixed Price ', after: ' For sale' }], text: 'TOYOTA PRIUS, S 4WD Japan Lot 6589422, OnePURA Stock, 29.12.2026 23:00 4.5 Rating Year : 2019 Mileage : 46 000 km Fixed Price 1 525 000 ¥ For sale' }, site);
+  assert.deepEqual([l.year, l.km, l.price, l.priceKind], [2019, 46000, 1525000, 'fixed']);
+});
